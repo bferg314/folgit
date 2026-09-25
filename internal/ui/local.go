@@ -195,6 +195,16 @@ func (a *App) localKey(key string) tea.Cmd {
 		t.refresh()
 	case "r":
 		return a.startScan()
+	case "g":
+		r := t.selected()
+		switch {
+		case r == nil:
+			return nil
+		case a.cwdFile == "":
+			return a.notify(2, "Shell integration isn't set up: run `folgit init <shell>` (see README)")
+		}
+		a.cdTarget = r.path
+		return tea.Quit
 	case "p":
 		r := t.selected()
 		switch {

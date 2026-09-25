@@ -13,6 +13,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 
+	"github.com/bferg314/folgit/internal/cache"
 	"github.com/bferg314/folgit/internal/config"
 	"github.com/bferg314/folgit/internal/gitinfo"
 	"github.com/bferg314/folgit/internal/launcher"
@@ -33,7 +34,7 @@ var tabNames = []string{"Local", "Remote", "Settings"}
 
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
-	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true,
+	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true,
 }
 
@@ -58,6 +59,12 @@ type App struct {
 
 	gen    int
 	cancel context.CancelFunc
+
+	// cwdFile is set when launched through the shell wrapper (folgit init);
+	// cdTarget is the repo to cd into after exit.
+	cwdFile  string
+	cdTarget string
+	remoteAt time.Time
 }
 
 type toast struct {
@@ -97,8 +104,9 @@ type (
 	toastExpireMsg struct{ id int }
 )
 
-// New builds the app for root.
-func New(cfg *config.Config, cfgPath, root string) *App {
+// New builds the app for root. Rows from cached are shown immediately and
+// replaced as the fresh scan reports in. cwdFile enables the "g" (cd) key.
+func New(cfg *config.Config, cfgPath, root string, cached *cache.File, cwdFile string) *App {
 	a := &App{
 		cfg:     cfg,
 		cfgPath: cfgPath,
@@ -106,10 +114,46 @@ func New(cfg *config.Config, cfgPath, root string) *App {
 		st:      newStyles(true),
 		local:   newLocalTab(),
 		remote:  newRemoteTab(),
+		cwdFile: cwdFile,
 	}
 	a.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
 	a.spin.Style = a.st.logo
+
+	if cached != nil {
+		for _, l := range cached.Local {
+			a.local.add(l.Path, root, 0).status = l.Status
+		}
+		a.remote.all = cached.Remote
+		a.remoteAt = cached.RemoteAt
+		a.refreshViews()
+	}
 	return a
+}
+
+// Snapshot captures what should be cached for the next start.
+func (a *App) Snapshot() *cache.File {
+	f := &cache.File{Root: a.root, Remote: a.remote.all, RemoteAt: a.remoteAt}
+	for _, r := range a.local.rows {
+		l := cache.Local{Path: r.path}
+		if r.status != nil && r.status.Err == nil {
+			l.Status = r.status
+		}
+		f.Local = append(f.Local, l)
+	}
+	return f
+}
+
+// CdTarget is the repo the user asked to cd into, or "".
+func (a *App) CdTarget() string { return a.cdTarget }
+
+// saveCache writes a snapshot in the background. Failures are ignored: the
+// cache is only a startup accelerator.
+func (a *App) saveCache() tea.Cmd {
+	snap := a.Snapshot()
+	return func() tea.Msg {
+		_ = cache.Save(snap)
+		return nil
+	}
 }
 
 func (a *App) Init() tea.Cmd {
@@ -245,6 +289,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.done {
 			a.local.scanning = false
 			a.local.prune(a.gen)
+			cmd = a.saveCache()
 		}
 		a.local.refresh()
 		a.remote.refresh(a.localKeys())
@@ -266,11 +311,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case remoteMsg:
 		a.remote.loading = false
 		a.remote.err = msg.err
-		if msg.err == nil {
-			a.remote.all = msg.repos
+		if msg.err != nil {
+			return a, nil
 		}
+		a.remote.all = msg.repos
+		a.remoteAt = time.Now()
 		a.remote.refresh(a.localKeys())
-		return a, nil
+		return a, a.saveCache()
 
 	case cloneMsg:
 		key := msg.repo.Key()
@@ -575,7 +622,7 @@ func (a *App) renderHelpLine() string {
 	var pairs [][2]string
 	switch a.tab {
 	case tabLocal:
-		pairs = [][2]string{{"enter", "open"}}
+		pairs = [][2]string{{"enter", "open"}, {"g", "cd"}}
 		for _, t := range a.enabledTools() {
 			if t.Key != "" && !reservedKeys[t.Key] {
 				pairs = append(pairs, [2]string{t.Key, strings.ToLower(t.Name)})
@@ -615,6 +662,7 @@ func (a *App) renderHelp() string {
 		row("pgup/pgdn", "page"),
 		row("/", "fuzzy filter (esc clears)"),
 		row("enter", "local: pick a tool · remote: clone"),
+		row("g", "quit and cd into the repo (folgit init)"),
 		row("r / R", "rescan local · reload remote"),
 		"",
 		st.dim.Render("Tools and scan options live in"),

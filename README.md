@@ -9,11 +9,28 @@ folgit ~/code     # scan somewhere else
 
 ## Tabs
 
-- **Local**: every repo found, with its branch, status and the time of its last commit. Press `enter` to choose a tool to open it in, or press a tool's key directly. `p` pulls (fast-forward only), `r` rescans, `s` changes the sort order, `/` filters.
+- **Local**: every repo found, with its branch, status and the time of its last commit. Press `enter` to choose a tool to open it in, or press a tool's key directly. `g` quits and moves your shell into the repo (see [Shell integration](#shell-integration)). `p` pulls (fast-forward only), `r` rescans, `s` changes the sort order, `/` filters.
 - **Remote**: your GitHub repos that aren't on this machine. `space` selects, `a` selects all, `enter` clones into the scanned directory.
 - **Settings**: turn tools and GitHub listing options on and off.
 
 Press `?` for the full key list and what the status symbols mean.
+
+## Shell integration
+
+A program can't change its parent shell's directory, so folgit ships a small wrapper function. Add the line for your shell to its startup file:
+
+```sh
+eval "$(folgit init bash)"                                # ~/.bashrc
+eval "$(folgit init zsh)"                                 # ~/.zshrc
+folgit init fish | source                                 # ~/.config/fish/config.fish
+Invoke-Expression (& folgit init powershell | Out-String)  # $PROFILE
+```
+
+After that, select a repo and press `g`: folgit exits and your shell is in that repo.
+
+## Startup cache
+
+folgit saves the last scan and remote list for each directory in your OS cache folder. On the next start it shows them right away, then refreshes in the background, dropping repos that have been deleted since. Run `folgit --no-cache` to ignore the cache.
 
 ## GitHub auth
 

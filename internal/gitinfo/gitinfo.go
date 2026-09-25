@@ -27,7 +27,7 @@ type Status struct {
 	Stashes    int
 	LastCommit time.Time // zero for repos without commits
 	Remotes    []string  // remote URLs
-	Err        error
+	Err        error     `json:"-"`
 }
 
 // Changes is the total number of changed paths.
