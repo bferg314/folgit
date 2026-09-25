@@ -34,7 +34,7 @@ var tabNames = []string{"Local", "Remote", "Settings"}
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true,
-	"h": true, "j": true, "k": true, "l": true, "1": true, "2": true, "3": true,
+	"j": true, "k": true, "1": true, "2": true, "3": true,
 }
 
 // App is the root model.
@@ -358,10 +358,10 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "?":
 		a.help = true
 		return nil
-	case "tab", "right", "l":
+	case "tab", "right":
 		a.tab = (a.tab + 1) % len(tabNames)
 		return nil
-	case "shift+tab", "left", "h":
+	case "shift+tab", "left":
 		a.tab = (a.tab + len(tabNames) - 1) % len(tabNames)
 		return nil
 	case "1", "2", "3":
@@ -610,7 +610,7 @@ func (a *App) renderHelp() string {
 		fit(st.dim.Render("∅"), 12) + st.textS.Render("branch has no upstream"),
 		"",
 		st.boxTitle.Render("Keys"),
-		row("tab / h l", "switch tabs (or 1-3)"),
+		row("tab / 1-3", "switch tabs"),
 		row("↑↓ / jk", "move"),
 		row("pgup/pgdn", "page"),
 		row("/", "fuzzy filter (esc clears)"),

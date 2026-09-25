@@ -122,7 +122,7 @@ func Default() *Config {
 			{Name: "Antigravity", Cmd: "agy", Args: []string{"{path}"}, Key: "a", Mode: ModeDetach},
 			{Name: "VS Code", Cmd: "code", Args: []string{"{path}"}, Key: "o", Mode: ModeDetach},
 			{Name: "Cursor", Cmd: "cursor", Args: []string{"{path}"}, Key: "u", Mode: ModeDetach},
-			{Name: "lazygit", Cmd: "lazygit", Key: "g", Mode: ModeTerminal},
+			{Name: "lazygit", Cmd: "lazygit", Key: "l", Mode: ModeTerminal},
 			fileManager(),
 		},
 	}
