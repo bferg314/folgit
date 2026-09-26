@@ -54,7 +54,7 @@ folgit uses `GH_TOKEN` or `GITHUB_TOKEN` if either is set. Otherwise it asks `gh
 
 ## Config
 
-On first run folgit writes `config.toml` to your OS config directory (`%AppData%\folgit` on Windows, `~/Library/Application Support/folgit` on macOS, `~/.config/folgit` on Linux) and switches on every tool it finds on your PATH.
+On first run folgit writes `config.toml` to your OS config directory (`%AppData%\folgit` on Windows, `~/Library/Application Support/folgit` on macOS, `~/.config/folgit` on Linux) and switches on every tool it finds on your PATH. Tools that aren't installed yet are switched on automatically once they are, either the next time folgit starts or when you open the Settings tab. A tool you switch off yourself in Settings stays off.
 
 ```toml
 max_depth = 4
