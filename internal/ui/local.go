@@ -7,9 +7,11 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/sahilm/fuzzy"
 
 	"github.com/bferg314/folgit/internal/gitinfo"
@@ -273,16 +275,27 @@ func (a *App) renderLocal(w, h int) string {
 		return strings.Join(lines, "\n")
 	}
 
-	// Column widths.
-	const statusW, agoW = 14, 9
-	branchW := 6
+	// Column widths. Status and branch take what their contents need; the
+	// repo name has priority over the branch when space is short.
+	const agoW, minBranchW = 9, 12
+	statusW, branchW, wantName := len("STATUS"), len("BRANCH"), len("REPOSITORY")
 	for _, r := range t.view {
-		if r.status != nil {
-			branchW = max(branchW, len(branchLabel(r.status)))
+		wantName = max(wantName, utf8.RuneCountInString(r.rel))
+		switch {
+		case r.busy != "":
+			statusW = max(statusW, 2+len(r.busy))
+		case r.status != nil && r.status.Err == nil:
+			branchW = max(branchW, utf8.RuneCountInString(branchLabel(r.status)))
+			statusW = max(statusW, lipgloss.Width(st.statusCell(r.status)))
 		}
 	}
+	statusW = min(statusW, 16)
 	branchW = min(branchW, 28)
-	nameW := max(10, w-2-branchW-statusW-agoW-6)
+	avail := w - 2 - statusW - agoW - 6 // marker and three gaps
+	if wantName+branchW > avail {
+		branchW = max(min(branchW, minBranchW), avail-wantName)
+	}
+	nameW := max(10, avail-branchW)
 
 	lines = append(lines, "  "+
 		fit(st.colHead.Render("REPOSITORY"), nameW)+"  "+
