@@ -38,7 +38,7 @@ const chromeLines = 3
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
-	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true,
+	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true, "w": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true,
 }
 

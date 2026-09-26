@@ -34,3 +34,18 @@ func TestGitHubRepos(t *testing.T) {
 		t.Fatalf("GitHubRepos = %v, want %v", got, want)
 	}
 }
+
+func TestWebURL(t *testing.T) {
+	cases := map[string]string{
+		"git@github.com:Owner/Repo.git":          "https://github.com/Owner/Repo",
+		"https://github.com/Owner/Repo":          "https://github.com/Owner/Repo",
+		"ssh://git@github.com:22/owner/repo.git": "https://github.com/owner/repo",
+		"https://user@gitlab.com/group/sub/proj": "https://gitlab.com/group/sub/proj",
+		"/home/me/repos/thing":                   "",
+	}
+	for in, want := range cases {
+		if got := WebURL(in); got != want {
+			t.Errorf("WebURL(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

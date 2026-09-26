@@ -15,33 +15,51 @@ import (
 //
 // It returns "" for URLs it does not understand (local paths, etc).
 func Key(raw string) string {
-	raw = strings.TrimSpace(raw)
-	var host, path string
+	host, path := parse(raw)
+	if host == "" {
+		return ""
+	}
+	return strings.ToLower(host + "/" + path)
+}
 
+// WebURL turns a remote URL into the repo's web page, keeping the original
+// case: git@github.com:Owner/Repo.git -> https://github.com/Owner/Repo.
+// It returns "" for URLs it does not understand (local paths, etc).
+func WebURL(raw string) string {
+	host, path := parse(raw)
+	if host == "" {
+		return ""
+	}
+	return "https://" + host + "/" + path
+}
+
+// parse splits a remote URL into host and "owner/repo" path, or returns
+// empty strings.
+func parse(raw string) (host, path string) {
+	raw = strings.TrimSpace(raw)
 	if strings.Contains(raw, "://") {
 		u, err := url.Parse(raw)
 		if err != nil || u.Host == "" || u.Scheme == "file" {
-			return ""
+			return "", ""
 		}
 		host, path = u.Hostname(), u.Path
 	} else if at := strings.Index(raw, "@"); at >= 0 {
 		// scp-like: user@host:owner/repo
-		rest := raw[at+1:]
-		h, p, ok := strings.Cut(rest, ":")
+		h, p, ok := strings.Cut(raw[at+1:], ":")
 		if !ok {
-			return ""
+			return "", ""
 		}
 		host, path = h, p
 	} else {
-		return ""
+		return "", ""
 	}
 
 	path = strings.Trim(path, "/")
 	path = strings.TrimSuffix(path, ".git")
 	if host == "" || path == "" {
-		return ""
+		return "", ""
 	}
-	return strings.ToLower(host + "/" + path)
+	return host, path
 }
 
 // GitHubRepos returns "owner/repo" for each github.com URL in urls, in

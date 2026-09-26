@@ -210,6 +210,8 @@ func (a *App) localKey(key string) tea.Cmd {
 		return a.openCleanup(false)
 	case "B":
 		return a.openCleanup(true)
+	case "w":
+		return a.localWeb()
 	case "i":
 		return a.localIssues()
 	case "g":

@@ -12,7 +12,6 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/folgit/internal/config"
-	"github.com/bferg314/folgit/internal/launcher"
 	"github.com/bferg314/folgit/internal/match"
 	"github.com/bferg314/folgit/internal/provider/github"
 )
@@ -153,7 +152,7 @@ func (a *App) issuesKey(key string) tea.Cmd {
 	case "enter", "o":
 		if v.cursor < len(v.issues) {
 			is := v.issues[v.cursor]
-			if err := launcher.OpenURL(is.URL); err != nil {
+			if err := openURL(is.URL); err != nil {
 				return a.notify(2, "Opening #%d: %v", is.Number, err)
 			}
 			return a.notify(1, "Opened #%d in your browser", is.Number)
