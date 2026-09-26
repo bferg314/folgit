@@ -129,18 +129,3 @@ func TestDetailScrollFullScreen(t *testing.T) {
 		t.Fatalf("j/down should scroll the full-screen pane, scroll=%d sel=%s", a.detail.scroll, a.local.selected().rel)
 	}
 }
-
-func TestDetailMouseWheel(t *testing.T) {
-	a := newDetailApp(t, 140, 20)
-	screen(a)
-	pane := a.w - a.paneWidth() + 5
-
-	a.Update(tea.MouseWheelMsg{X: pane, Y: 5, Button: tea.MouseWheelDown})
-	if a.detail.scroll != 3 {
-		t.Fatalf("wheel over pane: scroll = %d, want 3", a.detail.scroll)
-	}
-	a.Update(tea.MouseWheelMsg{X: 5, Y: 5, Button: tea.MouseWheelDown})
-	if a.local.selected().rel != "beta" {
-		t.Fatalf("wheel over list should move the selection, got %s", a.local.selected().rel)
-	}
-}

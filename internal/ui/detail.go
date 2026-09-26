@@ -174,29 +174,6 @@ func (a *App) detailScrollKey(key string) bool {
 
 func (a *App) paneWidth() int { return max(40, min(70, a.w*2/5)) }
 
-// mouseWheel scrolls whatever is under the pointer.
-func (a *App) mouseWheel(m tea.MouseWheelMsg) {
-	delta := 0
-	switch m.Button {
-	case tea.MouseWheelDown:
-		delta = 1
-	case tea.MouseWheelUp:
-		delta = -1
-	default:
-		return
-	}
-	switch layout := a.detailLayout(); {
-	case a.issues != nil:
-		a.issues.cursor = max(0, min(len(a.issues.issues)-1, a.issues.cursor+delta))
-	case layout == layoutFull, layout == layoutSide && m.X >= a.w-a.paneWidth():
-		a.scrollDetail(3 * delta)
-	case a.tab == tabLocal:
-		a.local.move(delta)
-	case a.tab == tabRemote:
-		a.remote.cursor = max(0, min(len(a.remote.view)-1, a.remote.cursor+delta))
-	}
-}
-
 func (a *App) renderLocalBody(h int) string {
 	switch a.detailLayout() {
 	case layoutSide:

@@ -401,12 +401,6 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return a, a.handleKey(msg)
-
-	case tea.MouseWheelMsg:
-		if a.popup == nil && !a.help {
-			a.mouseWheel(msg)
-		}
-		return a, nil
 	}
 
 	// Let a focused filter input receive anything else (cursor blink etc).
@@ -557,8 +551,6 @@ func (a *App) saveConfig() tea.Cmd {
 func (a *App) View() tea.View {
 	v := tea.NewView(a.render())
 	v.AltScreen = true
-	// Wheel events only; hold shift to select text in most terminals.
-	v.MouseMode = tea.MouseModeCellMotion
 	v.WindowTitle = "folgit"
 	return v
 }
@@ -733,7 +725,7 @@ func (a *App) renderHelp() string {
 		row("F", "fetch all repos"),
 		row("d", "toggle the detail pane"),
 		row("i", "GitHub issues for the repo"),
-		row("J / K", "scroll details (ctrl+d/u half page, or wheel)"),
+		row("J / K", "scroll details (ctrl+d/u half page)"),
 		row("r / R", "rescan local · reload remote"),
 		"",
 		st.dim.Render("Tools and scan options live in"),
