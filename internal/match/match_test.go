@@ -20,3 +20,17 @@ func TestKey(t *testing.T) {
 		}
 	}
 }
+
+func TestGitHubRepos(t *testing.T) {
+	got := GitHubRepos([]string{
+		"git@github.com:Me/Fork.git",
+		"https://github.com/upstream/fork",
+		"https://github.com/me/fork", // duplicate of the first
+		"https://gitlab.com/me/other",
+		"/local/path",
+	})
+	want := []string{"me/fork", "upstream/fork"}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("GitHubRepos = %v, want %v", got, want)
+	}
+}

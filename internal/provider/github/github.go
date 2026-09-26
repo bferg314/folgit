@@ -22,6 +22,7 @@ var ErrNoToken = errors.New("no GitHub token: run `gh auth login` or set GITHUB_
 
 // GitHub lists repositories via the REST API.
 type GitHub struct {
+	api      string // base URL, overridable in tests
 	token    string
 	protocol string
 	opt      config.GitHub
@@ -46,6 +47,7 @@ func New(ctx context.Context, opt config.GitHub) (*GitHub, error) {
 		protocol = "https"
 	}
 	return &GitHub{
+		api:      "https://api.github.com",
 		token:    token,
 		protocol: protocol,
 		opt:      opt,
@@ -62,12 +64,12 @@ func (g *GitHub) ListRepos(ctx context.Context) ([]provider.Repo, error) {
 	if g.opt.IncludeOrgs {
 		affiliation += ",organization_member"
 	}
-	all, err := g.list(ctx, "https://api.github.com/user/repos?per_page=100&sort=pushed&affiliation="+affiliation)
+	all, err := g.list(ctx, g.api+"/user/repos?per_page=100&sort=pushed&affiliation="+affiliation)
 	if err != nil {
 		return nil, err
 	}
 	if g.opt.IncludeStarred {
-		starred, err := g.list(ctx, "https://api.github.com/user/starred?per_page=100")
+		starred, err := g.list(ctx, g.api+"/user/starred?per_page=100")
 		if err != nil {
 			return nil, err
 		}
@@ -127,36 +129,49 @@ var nextLink = regexp.MustCompile(`<([^>]+)>;\s*rel="next"`)
 func (g *GitHub) list(ctx context.Context, url string) ([]apiRepo, error) {
 	var all []apiRepo
 	for url != "" {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-		if err != nil {
-			return nil, err
-		}
-		req.Header.Set("Authorization", "Bearer "+g.token)
-		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-		resp, err := g.client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return nil, fmt.Errorf("github: %s", resp.Status)
-		}
 		var page []apiRepo
-		err = json.NewDecoder(resp.Body).Decode(&page)
-		resp.Body.Close()
+		next, err := g.get(ctx, url, &page)
 		if err != nil {
-			return nil, fmt.Errorf("github: decoding response: %w", err)
+			return nil, err
 		}
 		all = append(all, page...)
-
-		url = ""
-		if m := nextLink.FindStringSubmatch(resp.Header.Get("Link")); m != nil {
-			url = m[1]
-		}
+		url = next
 	}
 	return all, nil
+}
+
+// ErrNotFound is returned for 404s: the repo doesn't exist, isn't visible
+// to this token, or (for issues) has issues turned off.
+var ErrNotFound = errors.New("github: not found")
+
+// get fetches one API page into v and returns the next page's URL, if any.
+func (g *GitHub) get(ctx context.Context, url string, v any) (next string, err error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+g.token)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+
+	resp, err := g.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	switch {
+	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
+		return "", ErrNotFound
+	case resp.StatusCode != http.StatusOK:
+		return "", fmt.Errorf("github: %s", resp.Status)
+	}
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+		return "", fmt.Errorf("github: decoding response: %w", err)
+	}
+	if m := nextLink.FindStringSubmatch(resp.Header.Get("Link")); m != nil {
+		next = m[1]
+	}
+	return next, nil
 }
 
 func ghOutput(ctx context.Context, args ...string) string {

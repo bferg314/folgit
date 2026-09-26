@@ -126,6 +126,8 @@ func (a *App) remoteKey(key string) tea.Cmd {
 		for _, r := range t.view {
 			t.selected[r.Key()] = !all
 		}
+	case "i":
+		return a.remoteIssues()
 	case "R":
 		return a.loadRemote()
 	case "enter":

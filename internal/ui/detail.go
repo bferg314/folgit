@@ -30,6 +30,14 @@ type detailState struct {
 	path  string
 	seq   int
 	cache map[string]*gitinfo.Details
+
+	// Scrolling. scroll resets when a different repo is selected
+	// (scrollPath), but survives reloads of the same repo. maxScroll and
+	// bodyH are recorded at render time for the key handlers.
+	scroll     int
+	scrollPath string
+	maxScroll  int
+	bodyH      int
 }
 
 type (
@@ -87,7 +95,7 @@ func loadDetails(path string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		return detailMsg{path: path, details: gitinfo.GetDetails(ctx, path, 10, 8, 60)}
+		return detailMsg{path: path, details: gitinfo.GetDetails(ctx, path, 30, 30, 200)}
 	}
 }
 
@@ -105,10 +113,71 @@ func (a *App) invalidateDetails(path string) {
 	}
 }
 
+// scrollDetail moves the pane's scroll position by delta lines.
+func (a *App) scrollDetail(delta int) {
+	a.measureDetail()
+	a.detail.scroll = max(0, min(a.detail.maxScroll, a.detail.scroll+delta))
+}
+
+// measureDetail lays the pane out without drawing it, so the scroll limits
+// match the current selection even if several keys arrive between frames.
+func (a *App) measureDetail() {
+	h := a.h - chromeLines
+	switch a.detailLayout() {
+	case layoutSide:
+		a.renderDetail(a.paneWidth(), h, true)
+	case layoutFull:
+		a.renderDetail(a.w, h, false)
+	}
+}
+
+// detailScrollKey handles pane scrolling keys. In the full-screen layout
+// the plain movement keys scroll too, since there is no list to move.
+func (a *App) detailScrollKey(key string) bool {
+	layout := a.detailLayout()
+	if layout == layoutNone {
+		return false
+	}
+	half := max(1, a.detail.bodyH/2)
+	switch key {
+	case "J":
+		a.scrollDetail(1)
+	case "K":
+		a.scrollDetail(-1)
+	case "ctrl+d":
+		a.scrollDetail(half)
+	case "ctrl+u":
+		a.scrollDetail(-half)
+	default:
+		if layout != layoutFull {
+			return false
+		}
+		switch key {
+		case "j", "down":
+			a.scrollDetail(1)
+		case "k", "up":
+			a.scrollDetail(-1)
+		case "pgdown", "space":
+			a.scrollDetail(a.detail.bodyH)
+		case "pgup":
+			a.scrollDetail(-a.detail.bodyH)
+		case "home":
+			a.scrollDetail(-a.detail.maxScroll)
+		case "end":
+			a.scrollDetail(a.detail.maxScroll)
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func (a *App) paneWidth() int { return max(40, min(70, a.w*2/5)) }
+
 func (a *App) renderLocalBody(h int) string {
 	switch a.detailLayout() {
 	case layoutSide:
-		pw := max(40, min(70, a.w*2/5))
+		pw := a.paneWidth()
 		lw := a.w - pw
 		return lipgloss.JoinHorizontal(lipgloss.Top,
 			padLines(a.renderLocal(lw, h), h, lw),
@@ -123,10 +192,13 @@ func (a *App) renderDetail(w, h int, border bool) string {
 	st := a.st
 	r := a.local.selected()
 	cw := w - 3 // content width after the border/gutter
-	var lines []string
-	add := func(s string) { lines = append(lines, fit(s, cw)) }
+
+	// The header (name, branch, changes) stays put; the body scrolls.
+	var header, body []string
+	lines := &header
+	add := func(s string) { *lines = append(*lines, fit(s, cw)) }
 	section := func(title string) {
-		lines = append(lines, "")
+		*lines = append(*lines, "")
 		add(st.colHead.Render(title))
 	}
 
@@ -147,18 +219,41 @@ func (a *App) renderDetail(w, h int, border bool) string {
 			add(st.bad.Render(s.Err.Error()))
 		}
 
+		lines = &body
 		d := a.detail.cache[r.path]
 		if d == nil {
-			lines = append(lines, "")
+			body = append(body, "")
 			add(a.spin.View() + st.dim.Render(" loading…"))
 		} else {
 			a.appendDetails(d, cw, add, section)
 		}
+
+		if r.path != a.detail.scrollPath {
+			a.detail.scrollPath, a.detail.scroll = r.path, 0
+		}
 	}
 
-	if len(lines) > h {
-		lines = lines[:h]
+	bodyH := max(0, h-len(header))
+	a.detail.bodyH = bodyH
+	a.detail.maxScroll = max(0, len(body)-bodyH)
+	a.detail.scroll = min(a.detail.scroll, a.detail.maxScroll)
+	if a.detail.maxScroll > 0 && len(header) > 0 {
+		// Scroll position on the title line, e.g. "J/K ↕ 40%".
+		pct := a.detail.scroll * 100 / a.detail.maxScroll
+		ind := st.dim.Render(fmt.Sprintf("J/K ↕ %d%%", pct))
+		title := st.selName.Render(r.rel)
+		header[0] = fit(title, max(1, cw-lipgloss.Width(ind)-1)) + " " + ind
 	}
+	all := append(header, body[a.detail.scroll:]...)
+	if len(all) > h {
+		all = all[:h]
+	}
+	return a.framePane(all, h, cw, border)
+}
+
+// framePane pads the pane to h lines and adds the left border or gutter.
+func (a *App) framePane(lines []string, h, cw int, border bool) string {
+	st := a.st
 	prefix := " "
 	if border {
 		prefix = st.rule.Render("│") + " "

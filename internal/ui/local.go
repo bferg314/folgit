@@ -175,6 +175,9 @@ func (t *localTab) move(delta int) {
 // ---- keys ----
 
 func (a *App) localKey(key string) tea.Cmd {
+	if a.detailScrollKey(key) {
+		return nil
+	}
 	t := &a.local
 	page := max(1, a.h-8)
 	switch key {
@@ -199,8 +202,10 @@ func (a *App) localKey(key string) tea.Cmd {
 		return a.startBulk(false)
 	case "P":
 		return a.startBulk(true)
-	case "i":
+	case "d":
 		a.toggleDetails()
+	case "i":
+		return a.localIssues()
 	case "g":
 		r := t.selected()
 		switch {
