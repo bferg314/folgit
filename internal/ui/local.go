@@ -195,6 +195,12 @@ func (a *App) localKey(key string) tea.Cmd {
 		t.refresh()
 	case "r":
 		return a.startScan()
+	case "F":
+		return a.startBulk(false)
+	case "P":
+		return a.startBulk(true)
+	case "i":
+		a.toggleDetails()
 	case "g":
 		r := t.selected()
 		switch {
@@ -240,7 +246,7 @@ func (a *App) localKey(key string) tea.Cmd {
 
 // ---- view ----
 
-func (a *App) renderLocal(h int) string {
+func (a *App) renderLocal(w, h int) string {
 	t := &a.local
 	st := a.st
 	var lines []string
@@ -271,7 +277,7 @@ func (a *App) renderLocal(h int) string {
 		}
 	}
 	branchW = min(branchW, 28)
-	nameW := max(10, a.w-2-branchW-statusW-agoW-6)
+	nameW := max(10, w-2-branchW-statusW-agoW-6)
 
 	lines = append(lines, "  "+
 		fit(st.colHead.Render("REPOSITORY"), nameW)+"  "+

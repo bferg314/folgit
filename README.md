@@ -9,7 +9,7 @@ folgit ~/code     # scan somewhere else
 
 ## Install
 
-You need Go 1.27 or newer and `git` on your PATH.
+You need Go 1.26 or newer and `git` on your PATH.
 
 ```sh
 go install github.com/bferg314/folgit/cmd/folgit@latest
@@ -21,7 +21,9 @@ For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh 
 
 ## Tabs
 
-- **Local**: every repo found, with its branch, status and the time of its last commit. Press `enter` to choose a tool to open it in, or press a tool's key directly. `g` quits and moves your shell into the repo (see [Shell integration](#shell-integration)). `p` pulls (fast-forward only), `r` rescans, `s` changes the sort order, `/` filters.
+- **Local**: every repo found, with its branch, status and the time of its last commit. Press `enter` to choose a tool to open it in, or press a tool's key directly. `g` quits and moves your shell into the repo (see [Shell integration](#shell-integration)). `r` rescans, `s` changes the sort order, `/` filters.
+  - **Pulling:** `p` pulls the selected repo (fast-forward only). `F` fetches every repo, 8 at a time, so the ↓ counts are current. `P` fetches every repo too, then pulls the ones that are behind and have no local changes or unpushed commits. Everything else is left alone and counted as skipped.
+  - **Detail pane:** on terminals at least 100 columns wide, a pane beside the list shows the selected repo's working tree state, recent commits, branches (including ones whose upstream is gone or that exist only locally), remotes and the start of its README. `i` hides it. On narrower terminals `i` shows it full screen and `esc` closes it.
 - **Remote**: your GitHub repos that aren't on this machine. `space` selects, `a` selects all, `enter` clones into the scanned directory.
 - **Settings**: turn tools and GitHub listing options on and off.
 
@@ -82,7 +84,7 @@ go test ./...
 
 ## Known limitations
 
-- Clones and pulls run in the background with no terminal to type into. If your SSH key needs a passphrase and isn't loaded in an agent, git can hang or draw over the screen. HTTPS logins can't prompt, so they fail with an error instead.
+- Clones, fetches and pulls run in the background with no terminal to type into, so they can't ask for passwords or SSH passphrases. They fail with an error instead: load your SSH key into an agent (or use a credential helper for HTTPS). If you set `core.sshCommand`, `GIT_SSH` or `GIT_SSH_COMMAND`, folgit uses it unchanged.
 - Changing a setting in the Settings tab rewrites `config.toml`, which removes any comments you added by hand.
 - GitHub is the only hosting service supported so far.
 
@@ -91,9 +93,7 @@ go test ./...
 Possible next steps, roughly in priority order:
 
 - **Unpushed-work report.** One view of every repo with uncommitted changes, unpushed commits, stashes or branches that exist only on this machine, so you can tell whether it's safe to wipe it.
-- **Fetch and pull in bulk.** Fetch every repo in the background and fast-forward the ones that can be, skipping any with local changes.
 - **Releases.** A GoReleaser config and a GitHub Actions workflow so that tagging a version publishes binaries for Windows, macOS and Linux, plus Homebrew and Scoop packages. Installing would no longer need Go.
-- **Detail pane.** Recent commits, branches, remotes and a README preview for the selected repo.
 - **PR and CI badges.** Open pull requests and the latest CI result for each repo, using the same GitHub token.
 - **Scriptable commands.** Non-interactive output such as `folgit ls --dirty --json` for scripts and shell prompts.
 - **Branch cleanup.** Find local branches that are already merged or whose remote branch is gone, and delete them in bulk.

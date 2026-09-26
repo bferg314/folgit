@@ -1,6 +1,12 @@
 package gitinfo
 
-import "testing"
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestParseStatus(t *testing.T) {
 	out := `# branch.oid 1234567890abcdef
@@ -34,5 +40,37 @@ func TestParseStatusDetachedInitial(t *testing.T) {
 	parseStatus([]byte("# branch.oid (initial)\n# branch.head (detached)\n"), &s)
 	if s.Branch != "" || s.Head != "" || s.Dirty() {
 		t.Fatalf("got %+v", s)
+	}
+}
+
+func TestGetDetails(t *testing.T) {
+	dir := t.TempDir()
+	run := func(args ...string) {
+		t.Helper()
+		if _, err := Git(context.Background(), dir, args...); err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+	}
+	run("init", "-q", "-b", "main")
+	run("remote", "add", "origin", "git@github.com:o/r.git")
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("[![ci](x)](y)\n# Title\n\n\n\nBody line\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	run("add", ".")
+	run("-c", "user.name=Ada", "-c", "user.email=a@b", "commit", "-q", "-m", "first commit")
+	run("branch", "feature")
+
+	d := GetDetails(context.Background(), dir, 10, 10, 10)
+	if len(d.Commits) != 1 || d.Commits[0].Subject != "first commit" || d.Commits[0].Author != "Ada" || d.Commits[0].When.IsZero() {
+		t.Errorf("commits: %+v", d.Commits)
+	}
+	if len(d.Branches) != 2 {
+		t.Errorf("branches: %+v", d.Branches)
+	}
+	if len(d.Remotes) != 1 || d.Remotes[0].Name != "origin" {
+		t.Errorf("remotes: %+v", d.Remotes)
+	}
+	if want := []string{"# Title", "", "Body line"}; strings.Join(d.Readme, "|") != strings.Join(want, "|") {
+		t.Errorf("readme: %q", d.Readme)
 	}
 }

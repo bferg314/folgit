@@ -35,6 +35,7 @@ var tabNames = []string{"Local", "Remote", "Settings"}
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
+	"P": true, "F": true, "i": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true,
 }
 
@@ -65,6 +66,9 @@ type App struct {
 	cwdFile  string
 	cdTarget string
 	remoteAt time.Time
+
+	bulk   *bulkOp
+	detail detailState
 }
 
 type toast struct {
@@ -114,6 +118,7 @@ func New(cfg *config.Config, cfgPath, root string, cached *cache.File, cwdFile s
 		st:      newStyles(true),
 		local:   newLocalTab(),
 		remote:  newRemoteTab(),
+		detail:  detailState{show: true, cache: make(map[string]*gitinfo.Details)},
 		cwdFile: cwdFile,
 	}
 	a.spin = spinner.New(spinner.WithSpinner(spinner.MiniDot))
@@ -225,7 +230,8 @@ func refreshStatus(path string) tea.Cmd {
 }
 
 func (a *App) busy() bool {
-	return a.local.scanning || a.remote.loading || a.local.anyBusy() || len(a.remote.cloning) > 0
+	return a.local.scanning || a.remote.loading || a.local.anyBusy() || len(a.remote.cloning) > 0 ||
+		a.bulk != nil || a.detailLoading()
 }
 
 func (a *App) startSpinner() tea.Cmd {
@@ -261,6 +267,13 @@ func (a *App) localKeys() map[string]bool {
 }
 
 func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	_, cmd := a.dispatch(msg)
+	// Any message can move the selection (keys, filtering, rows streaming
+	// in), so keep the detail pane in step afterwards.
+	return a, tea.Batch(cmd, a.syncDetails())
+}
+
+func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		a.w, a.h = msg.Width, msg.Height
@@ -285,6 +298,11 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, nil
 		}
 		a.local.apply(msg.events, a.root, a.gen)
+		for _, e := range msg.events {
+			if e.Status != nil {
+				a.invalidateDetails(e.Path)
+			}
+		}
 		var cmd tea.Cmd
 		if msg.done {
 			a.local.scanning = false
@@ -304,8 +322,23 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			r.status = &s
 			r.busy = ""
 		}
+		a.invalidateDetails(msg.path)
 		a.local.refresh()
 		a.remote.refresh(a.localKeys())
+		return a, nil
+
+	case bulkItemMsg:
+		return a, a.handleBulkItem(msg)
+
+	case detailTickMsg:
+		if msg.seq != a.detail.seq || a.detail.cache[msg.path] != nil {
+			return a, nil
+		}
+		return a, tea.Batch(loadDetails(msg.path), a.startSpinner())
+
+	case detailMsg:
+		d := msg.details
+		a.detail.cache[msg.path] = &d
 		return a, nil
 
 	case remoteMsg:
@@ -424,6 +457,10 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 			a.refreshViews()
 			return nil
 		}
+		if a.detailLayout() == layoutFull {
+			a.detail.full = false
+			return nil
+		}
 	}
 
 	switch a.tab {
@@ -518,7 +555,7 @@ func (a *App) render() string {
 	var body string
 	switch a.tab {
 	case tabLocal:
-		body = a.renderLocal(bodyH)
+		body = a.renderLocalBody(bodyH)
 	case tabRemote:
 		body = a.renderRemote(bodyH)
 	case tabSettings:
@@ -581,6 +618,9 @@ func (a *App) renderHeader() string {
 	left := logo + " " + strings.Join(tabs, " ")
 
 	right := a.st.dim.Render(a.root) + " "
+	if p := a.bulkProgress(); p != "" {
+		right = a.st.textS.Render(p) + "  " + right
+	}
 	if a.busy() {
 		right = a.spin.View() + " " + right
 	}
@@ -622,19 +662,20 @@ func (a *App) renderHelpLine() string {
 	var pairs [][2]string
 	switch a.tab {
 	case tabLocal:
-		pairs = [][2]string{{"enter", "open"}, {"g", "cd"}}
+		// Tool keys go last: they're the first thing to drop on narrow terminals.
+		pairs = [][2]string{{"enter", "open"}, {"g", "cd"}, {"p", "pull"}, {"F", "fetch all"}, {"P", "pull all"},
+			{"i", "details"}, {"s", "sort: " + a.local.sort.String()}, {"/", "filter"}, {"?", "help"}, {"q", "quit"}}
 		for _, t := range a.enabledTools() {
 			if t.Key != "" && !reservedKeys[t.Key] {
 				pairs = append(pairs, [2]string{t.Key, strings.ToLower(t.Name)})
 			}
 		}
-		pairs = append(pairs, [][2]string{{"p", "pull"}, {"r", "rescan"}, {"s", "sort: " + a.local.sort.String()}, {"/", "filter"}}...)
 	case tabRemote:
-		pairs = [][2]string{{"space", "select"}, {"enter", "clone"}, {"a", "select all"}, {"R", "reload"}, {"/", "filter"}}
+		pairs = [][2]string{{"space", "select"}, {"enter", "clone"}, {"a", "select all"}, {"R", "reload"}, {"/", "filter"},
+			{"tab", "switch"}, {"?", "help"}, {"q", "quit"}}
 	case tabSettings:
-		pairs = [][2]string{{"space", "toggle"}}
+		pairs = [][2]string{{"space", "toggle"}, {"tab", "switch"}, {"?", "help"}, {"q", "quit"}}
 	}
-	pairs = append(pairs, [][2]string{{"tab", "switch"}, {"?", "help"}, {"q", "quit"}}...)
 
 	var parts []string
 	for _, p := range pairs {
@@ -643,26 +684,29 @@ func (a *App) renderHelpLine() string {
 	return fit(" "+strings.Join(parts, a.st.faintText.Render(" · ")), a.w)
 }
 
+func legend(sym1, text1, sym2, text2 string, st styles) string {
+	return fit(sym1, 4) + fit(st.textS.Render(text1), 22) + fit(sym2, 4) + st.textS.Render(text2)
+}
+
 func (a *App) renderHelp() string {
 	st := a.st
 	row := func(k, d string) string { return fit(st.key.Render(k), 12) + st.textS.Render(d) }
 	lines := []string{
 		st.boxTitle.Render("Status"),
-		fit(st.ok.Render("✓"), 12) + st.textS.Render("clean and in sync"),
-		fit(st.warn.Render("●3"), 12) + st.textS.Render("3 changed files"),
-		fit(st.bad.Render("!2"), 12) + st.textS.Render("2 merge conflicts"),
-		fit(st.ahead.Render("↑2"), 12) + st.textS.Render("2 commits to push"),
-		fit(st.behind.Render("↓5"), 12) + st.textS.Render("5 commits to pull"),
-		fit(st.dim.Render("≡1"), 12) + st.textS.Render("1 stash"),
-		fit(st.dim.Render("∅"), 12) + st.textS.Render("branch has no upstream"),
+		legend(st.ok.Render("✓"), "clean and in sync", st.warn.Render("●3"), "3 changed files", st),
+		legend(st.ahead.Render("↑2"), "2 commits to push", st.behind.Render("↓5"), "5 commits to pull", st),
+		legend(st.bad.Render("!2"), "2 merge conflicts", st.dim.Render("≡1"), "1 stash", st),
+		legend(st.dim.Render("∅"), "no upstream", "", "", st),
 		"",
 		st.boxTitle.Render("Keys"),
 		row("tab / 1-3", "switch tabs"),
-		row("↑↓ / jk", "move"),
-		row("pgup/pgdn", "page"),
+		row("↑↓ / jk", "move (pgup/pgdn to page)"),
 		row("/", "fuzzy filter (esc clears)"),
 		row("enter", "local: pick a tool · remote: clone"),
 		row("g", "quit and cd into the repo (folgit init)"),
+		row("p / P", "pull this repo · pull all clean repos"),
+		row("F", "fetch all repos"),
+		row("i", "toggle the detail pane"),
 		row("r / R", "rescan local · reload remote"),
 		"",
 		st.dim.Render("Tools and scan options live in"),

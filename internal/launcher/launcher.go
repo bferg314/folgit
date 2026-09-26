@@ -60,14 +60,18 @@ func Pull(ctx context.Context, dir string) error {
 	return runGit(ctx, dir, "pull", "--ff-only", "--quiet")
 }
 
+// Fetch updates every remote of the repo in dir, pruning deleted branches.
+func Fetch(ctx context.Context, dir string) error {
+	return runGit(ctx, dir, "fetch", "--all", "--prune", "--quiet")
+}
+
 func runGit(ctx context.Context, dir string, args ...string) error {
 	cmd := exec.CommandContext(ctx, "git", args...)
 	cmd.Dir = dir
-	// Never let git prompt for credentials: there is no terminal to answer.
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = nonInteractiveEnv(ctx, dir)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		if msg := lastLine(string(out)); msg != "" {
+		if msg := gitErrorLine(string(out)); msg != "" {
 			return errors.New(msg)
 		}
 		return err
@@ -75,7 +79,36 @@ func runGit(ctx context.Context, dir string, args ...string) error {
 	return nil
 }
 
-func lastLine(s string) string {
+// nonInteractiveEnv stops git and ssh from prompting: folgit owns the
+// terminal, so a prompt would hang or draw over the UI. HTTPS prompts are
+// disabled outright. SSH is put in batch mode (an unlocked agent still
+// works) unless the user has their own SSH command configured, which we
+// must not override.
+func nonInteractiveEnv(ctx context.Context, dir string) []string {
+	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	if os.Getenv("GIT_SSH_COMMAND") != "" || os.Getenv("GIT_SSH") != "" {
+		return env
+	}
+	check := exec.CommandContext(ctx, "git", "config", "--get", "core.sshCommand")
+	check.Dir = dir
+	if out, err := check.Output(); err == nil && strings.TrimSpace(string(out)) != "" {
+		return env
+	}
+	return append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes")
+}
+
+// gitErrorLine picks the most useful line from git's output: the first
+// "fatal:" or "error:" line (git follows these with generic advice), or
+// else the last line.
+func gitErrorLine(s string) string {
 	lines := strings.Split(strings.TrimSpace(s), "\n")
+	for _, l := range lines {
+		l = strings.TrimSpace(l)
+		for _, p := range []string{"fatal: ", "error: "} {
+			if msg, ok := strings.CutPrefix(l, p); ok {
+				return msg
+			}
+		}
+	}
 	return strings.TrimSpace(lines[len(lines)-1])
 }
