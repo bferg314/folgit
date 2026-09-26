@@ -30,7 +30,16 @@ For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh 
 - **Remote**: your GitHub repos that aren't on this machine. `space` selects, `a` selects all, `enter` clones into the scanned directory.
 - **Settings**: turn tools and GitHub listing options on and off.
 
-Press `?` for the full key list and what the status symbols mean.
+Press `?` for every key, including your tools' keys, and what the status symbols mean.
+
+## Status bar
+
+The bar at the bottom works like vim-airline:
+
+- **Left:** a coloured mode (`LOCAL`, `REMOTE`, `SETTINGS`, `FILTER` while you type a filter, or `ISSUES`/`BRANCHES`/`OPEN` when a popup is open), then the selected repo's branch and state, then its path.
+- **Right:** messages and background work (fetching, pulling, cloning), a count of dirty repos, repos to push and repos to pull across all your repos, your position in the list, and a `? help` reminder.
+
+On narrow terminals the path is shortened first, then the summary and position are dropped. To get airline's arrow separators, turn on **Powerline status bar** in Settings. It needs a [Nerd Font](https://www.nerdfonts.com/) or a Powerline-patched font; without one, segments are separated by colour.
 
 ## Shell integration
 

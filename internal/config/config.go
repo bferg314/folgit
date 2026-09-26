@@ -50,10 +50,13 @@ type GitHub struct {
 // Config is the full on-disk configuration.
 type Config struct {
 	// Version is the config format; see migrate.
-	Version    int      `toml:"version"`
-	MaxDepth   int      `toml:"max_depth"`
-	ScanHidden bool     `toml:"scan_hidden"`
-	Ignore     []string `toml:"ignore"`
+	Version    int  `toml:"version"`
+	MaxDepth   int  `toml:"max_depth"`
+	ScanHidden bool `toml:"scan_hidden"`
+	// Powerline draws the status bar with arrow separators, which need a
+	// Nerd Font or Powerline-patched font.
+	Powerline bool     `toml:"powerline"`
+	Ignore    []string `toml:"ignore"`
 	// CloneLayout decides where remote repos are cloned, relative to the
 	// scanned directory. Supports {host}, {owner} and {repo}.
 	CloneLayout string `toml:"clone_layout"`

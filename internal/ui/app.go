@@ -31,9 +31,9 @@ const (
 
 var tabNames = []string{"Local", "Remote", "Settings"}
 
-// chromeLines is the screen height used by the header, rules, info and
-// help lines around the body.
-const chromeLines = 5
+// chromeLines is the screen height used by the header, its rule and the
+// status bar around the body.
+const chromeLines = 3
 
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
@@ -583,7 +583,7 @@ func (a *App) render() string {
 	}
 	body = padLines(body, bodyH, a.w)
 
-	base := strings.Join([]string{header, rule, body, rule, a.renderInfo(), a.renderHelpLine()}, "\n")
+	base := strings.Join([]string{header, rule, body, a.renderStatusBar()}, "\n")
 
 	var overlay string
 	switch {
@@ -641,107 +641,10 @@ func (a *App) renderHeader() string {
 	}
 	left := logo + " " + strings.Join(tabs, " ")
 
-	right := a.st.dim.Render(a.root) + " "
-	if p := a.bulkProgress(); p != "" {
-		right = a.st.textS.Render(p) + "  " + right
-	}
-	if a.busy() {
-		right = a.spin.View() + " " + right
-	}
+	right := a.st.dim.Render(tildePath(a.root)) + " "
 	gap := a.w - lipgloss.Width(left) - lipgloss.Width(right)
 	if gap < 1 {
 		return fit(left, a.w)
 	}
 	return left + strings.Repeat(" ", gap) + right
-}
-
-func (a *App) renderInfo() string {
-	var left string
-	switch a.tab {
-	case tabLocal:
-		if r := a.local.selected(); r != nil {
-			left = a.st.dim.Render(" " + r.path)
-		}
-	case tabRemote:
-		if r := a.remote.current(); r != nil {
-			left = a.st.dim.Render(" " + r.WebURL)
-		}
-	case tabSettings:
-		left = a.st.dim.Render(" " + a.cfgPath)
-	}
-	if a.toast.text == "" {
-		return left
-	}
-	st := [...]lipgloss.Style{a.st.textS, a.st.ok, a.st.bad}[a.toast.kind]
-	icon := [...]string{"•", "✓", "✗"}[a.toast.kind]
-	right := st.Render(icon+" "+a.toast.text) + " "
-	gap := a.w - lipgloss.Width(left) - lipgloss.Width(right)
-	if gap < 1 {
-		return fit(right, a.w)
-	}
-	return left + strings.Repeat(" ", gap) + right
-}
-
-func (a *App) renderHelpLine() string {
-	var pairs [][2]string
-	switch a.tab {
-	case tabLocal:
-		// Tool keys go last: they're the first thing to drop on narrow terminals.
-		pairs = [][2]string{{"enter", "open"}, {"g", "cd"}, {"p", "pull"}, {"F", "fetch all"}, {"P", "pull all"},
-			{"d", "details"}, {"i", "issues"}, {"b", "branches"}}
-		if a.detail.maxScroll > 0 && a.detailLayout() != layoutNone {
-			pairs = append(pairs, [2]string{"J/K", "scroll details"})
-		}
-		pairs = append(pairs, [][2]string{{"s", "sort: " + a.local.sort.String()}, {"/", "filter"}, {"?", "help"}, {"q", "quit"}}...)
-		for _, t := range a.enabledTools() {
-			if t.Key != "" && !reservedKeys[t.Key] {
-				pairs = append(pairs, [2]string{t.Key, strings.ToLower(t.Name)})
-			}
-		}
-	case tabRemote:
-		pairs = [][2]string{{"space", "select"}, {"enter", "clone"}, {"a", "select all"}, {"i", "issues"}, {"R", "reload"}, {"/", "filter"},
-			{"tab", "switch"}, {"?", "help"}, {"q", "quit"}}
-	case tabSettings:
-		pairs = [][2]string{{"space", "toggle"}, {"tab", "switch"}, {"?", "help"}, {"q", "quit"}}
-	}
-
-	var parts []string
-	for _, p := range pairs {
-		parts = append(parts, a.st.key.Render(p[0])+" "+a.st.dim.Render(p[1]))
-	}
-	return fit(" "+strings.Join(parts, a.st.faintText.Render(" · ")), a.w)
-}
-
-func legend(sym1, text1, sym2, text2 string, st styles) string {
-	return fit(sym1, 4) + fit(st.textS.Render(text1), 22) + fit(sym2, 4) + st.textS.Render(text2)
-}
-
-func (a *App) renderHelp() string {
-	st := a.st
-	row := func(k, d string) string { return fit(st.key.Render(k), 12) + st.textS.Render(d) }
-	lines := []string{
-		st.boxTitle.Render("Status"),
-		legend(st.ok.Render("✓"), "clean and in sync", st.warn.Render("●3"), "3 changed files", st),
-		legend(st.ahead.Render("↑2"), "2 commits to push", st.behind.Render("↓5"), "5 commits to pull", st),
-		legend(st.bad.Render("!2"), "2 merge conflicts", st.dim.Render("≡1"), "1 stash", st),
-		legend(st.dim.Render("∅"), "no upstream", "", "", st),
-		"",
-		st.boxTitle.Render("Keys"),
-		row("tab / 1-3", "switch tabs"),
-		row("↑↓ / jk", "move (pgup/pgdn to page)"),
-		row("/", "fuzzy filter (esc clears)"),
-		row("enter", "local: pick a tool · remote: clone"),
-		row("g", "quit and cd into the repo (folgit init)"),
-		row("p / P", "pull this repo · pull all clean repos"),
-		row("F", "fetch all repos"),
-		row("d", "toggle the detail pane"),
-		row("i", "GitHub issues for the repo"),
-		row("b / B", "clean up stale branches: this repo · all repos"),
-		row("J / K", "scroll details (ctrl+d/u half page)"),
-		row("r / R", "rescan local · reload remote"),
-		"",
-		st.dim.Render("Tools and scan options live in"),
-		st.dim.Render(a.cfgPath),
-	}
-	return st.box.Padding(0, 2).Render(strings.Join(lines, "\n"))
 }
