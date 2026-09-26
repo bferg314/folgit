@@ -50,9 +50,12 @@ type GitHub struct {
 // Config is the full on-disk configuration.
 type Config struct {
 	// Version is the config format; see migrate.
-	Version    int  `toml:"version"`
-	MaxDepth   int  `toml:"max_depth"`
-	ScanHidden bool `toml:"scan_hidden"`
+	Version int `toml:"version"`
+	// DefaultDir is scanned when no directory is given on the command line.
+	// Empty means the current directory. Supports ~ and environment variables.
+	DefaultDir string `toml:"default_dir"`
+	MaxDepth   int    `toml:"max_depth"`
+	ScanHidden bool   `toml:"scan_hidden"`
 	// Powerline draws the status bar with arrow separators, which need a
 	// Nerd Font or Powerline-patched font.
 	Powerline bool     `toml:"powerline"`

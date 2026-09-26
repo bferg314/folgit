@@ -58,6 +58,7 @@ func (a *App) renderHelp() string {
 		"",
 		title("Settings"),
 		row("space", "toggle"),
+		row("enter / x", "default folder: set to current · clear"),
 	)
 
 	legend := func(sym, text string) string { return fit(sym, 5) + fit(st.textS.Render(text), 18) }
