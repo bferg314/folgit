@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 
 	"github.com/bferg314/folgit/internal/config"
@@ -33,6 +34,21 @@ func Detach(cmd *exec.Cmd) error {
 		return err
 	}
 	return cmd.Process.Release()
+}
+
+// OpenURL opens url in the default browser.
+func OpenURL(url string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		// Avoids cmd.exe's "start", which mangles URLs containing "&".
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", url)
+	case "darwin":
+		cmd = exec.Command("open", url)
+	default:
+		cmd = exec.Command("xdg-open", url)
+	}
+	return Detach(cmd)
 }
 
 // CloneDest expands layout ("{host}/{owner}/{repo}") under root.

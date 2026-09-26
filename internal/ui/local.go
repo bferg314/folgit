@@ -202,8 +202,10 @@ func (a *App) localKey(key string) tea.Cmd {
 		return a.startBulk(false)
 	case "P":
 		return a.startBulk(true)
-	case "i":
+	case "d":
 		a.toggleDetails()
+	case "i":
+		return a.localIssues()
 	case "g":
 		r := t.selected()
 		switch {

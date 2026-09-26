@@ -186,6 +186,8 @@ func (a *App) mouseWheel(m tea.MouseWheelMsg) {
 		return
 	}
 	switch layout := a.detailLayout(); {
+	case a.issues != nil:
+		a.issues.cursor = max(0, min(len(a.issues.issues)-1, a.issues.cursor+delta))
 	case layout == layoutFull, layout == layoutSide && m.X >= a.w-a.paneWidth():
 		a.scrollDetail(3 * delta)
 	case a.tab == tabLocal:

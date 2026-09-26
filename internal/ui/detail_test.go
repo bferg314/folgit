@@ -117,9 +117,9 @@ func TestDetailScrollBeforeRender(t *testing.T) {
 
 func TestDetailScrollFullScreen(t *testing.T) {
 	a := newDetailApp(t, 80, 20)
-	a.Update(key("i"))
+	a.Update(key("d"))
 	if a.detailLayout() != layoutFull {
-		t.Fatal("i should open the full-screen pane on a narrow terminal")
+		t.Fatal("d should open the full-screen pane on a narrow terminal")
 	}
 	screen(a)
 	a.Update(key("j"))

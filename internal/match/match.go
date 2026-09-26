@@ -43,3 +43,19 @@ func Key(raw string) string {
 	}
 	return strings.ToLower(host + "/" + path)
 }
+
+// GitHubRepos returns "owner/repo" for each github.com URL in urls, in
+// order and without duplicates.
+func GitHubRepos(urls []string) []string {
+	var out []string
+	seen := map[string]bool{}
+	for _, u := range urls {
+		host, path, ok := strings.Cut(Key(u), "/")
+		if !ok || host != "github.com" || strings.Count(path, "/") != 1 || seen[path] {
+			continue
+		}
+		seen[path] = true
+		out = append(out, path)
+	}
+	return out
+}

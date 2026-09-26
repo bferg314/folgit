@@ -19,7 +19,6 @@ import (
 	"github.com/bferg314/folgit/internal/launcher"
 	"github.com/bferg314/folgit/internal/match"
 	"github.com/bferg314/folgit/internal/provider"
-	"github.com/bferg314/folgit/internal/provider/github"
 	"github.com/bferg314/folgit/internal/repos"
 	"github.com/bferg314/folgit/internal/scan"
 )
@@ -39,7 +38,7 @@ const chromeLines = 5
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
-	"P": true, "F": true, "i": true, "J": true, "K": true,
+	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true,
 }
 
@@ -72,6 +71,7 @@ type App struct {
 	remoteAt time.Time
 
 	bulk   *bulkOp
+	issues *issuesView
 	detail detailState
 }
 
@@ -218,7 +218,7 @@ func (a *App) loadRemote() tea.Cmd {
 	return tea.Batch(a.startSpinner(), func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
-		gh, err := github.New(ctx, opt)
+		gh, err := githubClient(ctx, opt)
 		if err != nil {
 			return remoteMsg{err: err}
 		}
@@ -235,7 +235,7 @@ func refreshStatus(path string) tea.Cmd {
 
 func (a *App) busy() bool {
 	return a.local.scanning || a.remote.loading || a.local.anyBusy() || len(a.remote.cloning) > 0 ||
-		a.bulk != nil || a.detailLoading()
+		a.bulk != nil || a.detailLoading() || a.issues != nil && a.issues.loading
 }
 
 func (a *App) startSpinner() tea.Cmd {
@@ -340,6 +340,10 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(loadDetails(msg.path), a.startSpinner())
 
+	case issuesMsg:
+		a.handleIssues(msg)
+		return a, nil
+
 	case detailMsg:
 		d := msg.details
 		a.detail.cache[msg.path] = &d
@@ -422,6 +426,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if a.help {
 		a.help = false
 		return nil
+	}
+	if a.issues != nil {
+		return a.issuesKey(key)
 	}
 	if a.popup != nil {
 		return a.popupKey(key)
@@ -581,6 +588,8 @@ func (a *App) render() string {
 	switch {
 	case a.help:
 		overlay = a.renderHelp()
+	case a.issues != nil:
+		overlay = a.renderIssues()
 	case a.popup != nil:
 		overlay = a.renderPopup()
 	}
@@ -676,7 +685,7 @@ func (a *App) renderHelpLine() string {
 	case tabLocal:
 		// Tool keys go last: they're the first thing to drop on narrow terminals.
 		pairs = [][2]string{{"enter", "open"}, {"g", "cd"}, {"p", "pull"}, {"F", "fetch all"}, {"P", "pull all"},
-			{"i", "details"}}
+			{"d", "details"}, {"i", "issues"}}
 		if a.detail.maxScroll > 0 && a.detailLayout() != layoutNone {
 			pairs = append(pairs, [2]string{"J/K", "scroll details"})
 		}
@@ -687,7 +696,7 @@ func (a *App) renderHelpLine() string {
 			}
 		}
 	case tabRemote:
-		pairs = [][2]string{{"space", "select"}, {"enter", "clone"}, {"a", "select all"}, {"R", "reload"}, {"/", "filter"},
+		pairs = [][2]string{{"space", "select"}, {"enter", "clone"}, {"a", "select all"}, {"i", "issues"}, {"R", "reload"}, {"/", "filter"},
 			{"tab", "switch"}, {"?", "help"}, {"q", "quit"}}
 	case tabSettings:
 		pairs = [][2]string{{"space", "toggle"}, {"tab", "switch"}, {"?", "help"}, {"q", "quit"}}
@@ -722,7 +731,8 @@ func (a *App) renderHelp() string {
 		row("g", "quit and cd into the repo (folgit init)"),
 		row("p / P", "pull this repo · pull all clean repos"),
 		row("F", "fetch all repos"),
-		row("i", "toggle the detail pane"),
+		row("d", "toggle the detail pane"),
+		row("i", "GitHub issues for the repo"),
 		row("J / K", "scroll details (ctrl+d/u half page, or wheel)"),
 		row("r / R", "rescan local · reload remote"),
 		"",
