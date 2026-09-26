@@ -31,6 +31,10 @@ type Tool struct {
 	Key     string   `toml:"key"`
 	Mode    string   `toml:"mode"`
 	Enabled bool     `toml:"enabled"`
+	// AutoDisabled marks a tool folgit switched off because its command
+	// wasn't installed. It is switched back on once the command appears.
+	// Toggling a tool by hand clears it, so user choices stick.
+	AutoDisabled bool `toml:"auto_disabled,omitempty"`
 }
 
 // GitHub controls which remote repositories are listed.
@@ -45,6 +49,8 @@ type GitHub struct {
 
 // Config is the full on-disk configuration.
 type Config struct {
+	// Version is the config format; see migrate.
+	Version    int      `toml:"version"`
 	MaxDepth   int      `toml:"max_depth"`
 	ScanHidden bool     `toml:"scan_hidden"`
 	Ignore     []string `toml:"ignore"`
@@ -68,8 +74,10 @@ func Path() (string, error) {
 // installed tools are enabled, and the result is written to disk.
 func Load(path string) (*Config, error) {
 	cfg := Default()
+	cfg.Version = 0 // files from before versioning have no version key
 	_, err := toml.DecodeFile(path, cfg)
 	if errors.Is(err, fs.ErrNotExist) {
+		cfg.Version = configVersion
 		cfg.DetectTools()
 		return cfg, cfg.Save(path)
 	}
@@ -79,7 +87,8 @@ func Load(path string) (*Config, error) {
 	if cfg.MaxDepth <= 0 {
 		cfg.MaxDepth = Default().MaxDepth
 	}
-	if cfg.migrate() {
+	migrated := cfg.migrate()
+	if enabled := cfg.EnableInstalled(); migrated || len(enabled) > 0 {
 		if err := cfg.Save(path); err != nil {
 			return nil, err
 		}
@@ -87,10 +96,28 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// migrate fixes defaults written by older versions. It only touches values
-// that still match the old default exactly, so user edits are left alone.
+// configVersion is the current config format.
+//
+//	0: no version key; tool detection ran only when the file was created
+//	1: tools folgit disabled for being missing carry auto_disabled
+const configVersion = 1
+
+// migrate upgrades older configs. It only touches values that still match
+// an old default, so user edits are left alone.
 func (c *Config) migrate() bool {
 	changed := false
+	if c.Version < 1 {
+		// Version 0 couldn't tell "not installed at setup" from "turned off
+		// by the user". Treat every disabled tool as not-installed-at-setup,
+		// since that was the only way folgit itself disabled tools.
+		for i := range c.Tools {
+			if !c.Tools[i].Enabled {
+				c.Tools[i].AutoDisabled = true
+			}
+		}
+		c.Version = 1
+		changed = true
+	}
 	want := agyTool()
 	for i := range c.Tools {
 		t := &c.Tools[i]
@@ -117,16 +144,33 @@ func (c *Config) Save(path string) error {
 	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
-// DetectTools enables every configured tool whose command is on PATH.
+// DetectTools enables every configured tool whose command is on PATH and
+// marks the rest as auto-disabled, so they switch on once installed.
 func (c *Config) DetectTools() {
 	for i := range c.Tools {
-		c.Tools[i].Enabled = Available(c.Tools[i].Cmd)
+		ok := Available(c.Tools[i].Cmd)
+		c.Tools[i].Enabled, c.Tools[i].AutoDisabled = ok, !ok
 	}
+}
+
+// EnableInstalled switches on auto-disabled tools whose command is now on
+// PATH and returns their names. Tools the user turned off are untouched.
+func (c *Config) EnableInstalled() []string {
+	var names []string
+	for i := range c.Tools {
+		t := &c.Tools[i]
+		if t.AutoDisabled && !t.Enabled && Available(t.Cmd) {
+			t.Enabled, t.AutoDisabled = true, false
+			names = append(names, t.Name)
+		}
+	}
+	return names
 }
 
 // Default returns the built-in configuration.
 func Default() *Config {
 	return &Config{
+		Version:  configVersion,
 		MaxDepth: 4,
 		Ignore: []string{
 			"node_modules", "vendor", "target", "dist", "build", "out",

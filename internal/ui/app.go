@@ -450,14 +450,11 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		a.help = true
 		return nil
 	case "tab", "right":
-		a.tab = (a.tab + 1) % len(tabNames)
-		return nil
+		return a.setTab((a.tab + 1) % len(tabNames))
 	case "shift+tab", "left":
-		a.tab = (a.tab + len(tabNames) - 1) % len(tabNames)
-		return nil
+		return a.setTab((a.tab + len(tabNames) - 1) % len(tabNames))
 	case "1", "2", "3":
-		a.tab = int(key[0] - '1')
-		return nil
+		return a.setTab(int(key[0] - '1'))
 	case "/":
 		if f := a.activeFilter(); f != nil {
 			return f.Focus()

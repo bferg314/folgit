@@ -18,7 +18,8 @@ type settingItem struct {
 	detail  string
 	on      *bool
 	warn    string
-	remote  bool // changing it reloads the remote list
+	remote  bool         // changing it reloads the remote list
+	tool    *config.Tool // set for tool rows
 }
 
 func (a *App) settingItems() []settingItem {
@@ -30,6 +31,7 @@ func (a *App) settingItems() []settingItem {
 			label:   t.Name,
 			detail:  "[" + t.Key + "]  " + strings.TrimSpace(t.Cmd+" "+strings.Join(t.Args, " ")) + "  · " + t.Mode,
 			on:      &t.Enabled,
+			tool:    t,
 		}
 		switch {
 		case !config.Available(t.Cmd):
@@ -50,6 +52,20 @@ func (a *App) settingItems() []settingItem {
 	return items
 }
 
+// setTab switches tabs. Opening Settings re-checks for tools installed
+// while folgit was running.
+func (a *App) setTab(tab int) tea.Cmd {
+	a.tab = tab
+	if tab != tabSettings {
+		return nil
+	}
+	names := a.cfg.EnableInstalled()
+	if len(names) == 0 {
+		return nil
+	}
+	return tea.Batch(a.saveConfig(), a.notify(1, "Found and enabled %s", strings.Join(names, ", ")))
+}
+
 func (a *App) settingsKey(key string) tea.Cmd {
 	items := a.settingItems()
 	t := &a.settings
@@ -61,6 +77,9 @@ func (a *App) settingsKey(key string) tea.Cmd {
 	case "space", "enter":
 		it := items[t.cursor]
 		*it.on = !*it.on
+		if it.tool != nil {
+			it.tool.AutoDisabled = false // a hand-made choice sticks
+		}
 		cmds := []tea.Cmd{a.saveConfig()}
 		if it.remote {
 			cmds = append(cmds, a.loadRemote())
