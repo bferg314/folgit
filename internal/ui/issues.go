@@ -131,7 +131,7 @@ func (a *App) remoteIssues() tea.Cmd {
 
 func (a *App) issuesKey(key string) tea.Cmd {
 	v := a.issues
-	page := max(1, a.issuesListHeight())
+	page := max(1, a.popupListHeight())
 	move := func(d int) { v.cursor = max(0, min(len(v.issues)-1, v.cursor+d)) }
 	switch key {
 	case "esc", "q", "i":
@@ -162,21 +162,22 @@ func (a *App) issuesKey(key string) tea.Cmd {
 	return nil
 }
 
-// Popup geometry: the box fills the screen less a margin; inside it, a
-// title, a blank line, the list, a blank line and a hint line.
-func (a *App) issuesBoxSize() (w, h int) { return max(40, min(a.w-4, 120)), max(10, a.h-2) }
+// Popup geometry, shared by the issues and branch cleanup popups: the box
+// fills the screen less a margin; inside it are a title, a blank line, the
+// list, a blank line and a hint line.
+func (a *App) popupBoxSize() (w, h int) { return max(40, min(a.w-4, 120)), max(10, a.h-2) }
 
-func (a *App) issuesListHeight() int {
-	_, h := a.issuesBoxSize()
+func (a *App) popupListHeight() int {
+	_, h := a.popupBoxSize()
 	return max(1, h-2-2-4) // border, vertical padding, title/blank/blank/hint
 }
 
 func (a *App) renderIssues() string {
 	st := a.st
 	v := a.issues
-	bw, _ := a.issuesBoxSize()
+	bw, _ := a.popupBoxSize()
 	cw := bw - 2 - 4 // border and horizontal padding
-	listH := a.issuesListHeight()
+	listH := a.popupListHeight()
 
 	repo := v.repo
 	if repo == "" && len(v.repos) > 0 {
