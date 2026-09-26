@@ -70,6 +70,8 @@ type App struct {
 	cdTarget string
 	remoteAt time.Time
 
+	startupNotice string
+
 	bulk    *bulkOp
 	issues  *issuesView
 	cleanup *cleanupView
@@ -167,8 +169,15 @@ func (a *App) saveCache() tea.Cmd {
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(tea.RequestBackgroundColor, a.startScan(), a.loadRemote())
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, a.startScan(), a.loadRemote()}
+	if a.startupNotice != "" {
+		cmds = append(cmds, a.notify(2, "%s", a.startupNotice))
+	}
+	return tea.Batch(cmds...)
 }
+
+// StartupNotice shows msg as a message once the UI starts.
+func (a *App) StartupNotice(msg string) { a.startupNotice = msg }
 
 // startScan (re)scans the root. Existing rows keep their last status until
 // fresh results arrive; rows not rediscovered are dropped when it finishes.

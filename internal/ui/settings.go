@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -20,10 +21,14 @@ type settingItem struct {
 	warn    string
 	remote  bool         // changing it reloads the remote list
 	tool    *config.Tool // set for tool rows
+
+	// Action rows have no checkbox (on == nil): enter/space runs set, x
+	// runs clear.
+	set, clear func() tea.Cmd
 }
 
 func (a *App) settingItems() []settingItem {
-	var items []settingItem
+	items := []settingItem{a.defaultDirItem()}
 	for i := range a.cfg.Tools {
 		t := &a.cfg.Tools[i]
 		it := settingItem{
@@ -53,6 +58,38 @@ func (a *App) settingItems() []settingItem {
 	return items
 }
 
+// defaultDirItem shows default_dir and sets it to the folder being viewed.
+func (a *App) defaultDirItem() settingItem {
+	here := tildePath(a.root)
+	it := settingItem{section: "General", label: "Default folder"}
+	switch d := a.cfg.DefaultDir; {
+	case d == "":
+		it.detail = "not set: opens where you launch folgit · enter: use " + here
+	case d == here:
+		it.detail = d + " · x: clear"
+	default:
+		it.detail = d + " · enter: use " + here + " · x: clear"
+		if fi, err := os.Stat(config.ExpandPath(d)); err != nil || !fi.IsDir() {
+			it.warn = "folder not found"
+		}
+	}
+	it.set = func() tea.Cmd {
+		if a.cfg.DefaultDir == here {
+			return nil
+		}
+		a.cfg.DefaultDir = here
+		return tea.Batch(a.saveConfig(), a.notify(1, "folgit will open %s by default", here))
+	}
+	it.clear = func() tea.Cmd {
+		if a.cfg.DefaultDir == "" {
+			return nil
+		}
+		a.cfg.DefaultDir = ""
+		return tea.Batch(a.saveConfig(), a.notify(1, "Default folder cleared: folgit opens where you launch it"))
+	}
+	return it
+}
+
 // setTab switches tabs. Opening Settings re-checks for tools installed
 // while folgit was running.
 func (a *App) setTab(tab int) tea.Cmd {
@@ -75,8 +112,18 @@ func (a *App) settingsKey(key string) tea.Cmd {
 		t.cursor = max(0, t.cursor-1)
 	case "down", "j":
 		t.cursor = min(len(items)-1, t.cursor+1)
+	case "x":
+		if it := items[t.cursor]; it.clear != nil {
+			return it.clear()
+		}
 	case "space", "enter":
 		it := items[t.cursor]
+		if it.on == nil {
+			if it.set != nil {
+				return it.set()
+			}
+			return nil
+		}
 		*it.on = !*it.on
 		if it.tool != nil {
 			it.tool.AutoDisabled = false // a hand-made choice sticks
@@ -114,13 +161,24 @@ func (a *App) renderSettings(h int) string {
 			marker = st.marker.Render("▌") + " "
 			label = st.selName.Render(it.label)
 		}
-		box := st.faintText.Render("[ ]")
-		if *it.on {
+		var box string
+		switch {
+		case it.on == nil:
+			box = st.key.Render(" ▸ ")
+		case *it.on:
 			box = st.ok.Render("[✓]")
+		default:
+			box = st.faintText.Render("[ ]")
 		}
-		line := marker + "  " + box + " " + fit(label, 26) + st.dim.Render(it.detail)
-		if it.warn != "" {
-			line += "  " + st.warn.Render(it.warn)
+		line := marker + "  " + box + " " + fit(label, 26)
+		switch {
+		case it.warn != "" && it.on == nil:
+			// Action rows show long paths; keep the warning where it can't be cut off.
+			line += st.warn.Render(it.warn) + "  " + st.dim.Render(it.detail)
+		case it.warn != "":
+			line += st.dim.Render(it.detail) + "  " + st.warn.Render(it.warn)
+		default:
+			line += st.dim.Render(it.detail)
 		}
 		lines = append(lines, line)
 	}

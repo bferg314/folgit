@@ -25,7 +25,7 @@ func main() {
 	noCache := flag.Bool("no-cache", false, "ignore the cached scan and start fresh")
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, `Usage:
-  folgit [flags] [dir]    scan dir (default: current directory)
+  folgit [flags] [dir]    scan dir (default: default_dir from the config, else the current directory)
   folgit init <shell>     print shell integration (%s)
 
 Flags:
@@ -65,18 +65,7 @@ func runInit(sh string) error {
 	return nil
 }
 
-func run(dir, cwdFile string, noCache bool) error {
-	if dir == "" {
-		dir = "."
-	}
-	root, err := filepath.Abs(dir)
-	if err != nil {
-		return err
-	}
-	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
-		return fmt.Errorf("%s is not a directory", dir)
-	}
-
+func run(arg, cwdFile string, noCache bool) error {
 	cfgPath, err := config.Path()
 	if err != nil {
 		return err
@@ -86,12 +75,25 @@ func run(dir, cwdFile string, noCache bool) error {
 		return err
 	}
 
+	// An argument wins, then default_dir, then the current directory.
+	dir, notice := cfg.ResolveDir(arg)
+	root, err := filepath.Abs(dir)
+	if err != nil {
+		return err
+	}
+	if fi, err := os.Stat(root); err != nil || !fi.IsDir() {
+		return fmt.Errorf("%s is not a directory", dir)
+	}
+
 	var cached *cache.File
 	if !noCache {
 		cached = cache.Load(root)
 	}
 
 	app := ui.New(cfg, cfgPath, root, cached, cwdFile)
+	if notice != "" {
+		app.StartupNotice(notice)
+	}
 	if _, err := tea.NewProgram(app).Run(); err != nil {
 		return err
 	}

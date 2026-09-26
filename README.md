@@ -3,8 +3,8 @@
 A terminal dashboard for every git repository under a directory, plus the GitHub repositories you haven't cloned yet.
 
 ```
-folgit            # scan the current directory
-folgit ~/code     # scan somewhere else
+folgit            # scan default_dir if set, otherwise the current directory
+folgit ~/code     # scan this folder (always wins over default_dir)
 ```
 
 ## Install
@@ -66,7 +66,10 @@ folgit uses `GH_TOKEN` or `GITHUB_TOKEN` if either is set. Otherwise it asks `gh
 
 On first run folgit writes `config.toml` to your OS config directory (`%AppData%\folgit` on Windows, `~/Library/Application Support/folgit` on macOS, `~/.config/folgit` on Linux) and switches on every tool it finds on your PATH. Tools that aren't installed yet are switched on automatically once they are, either the next time folgit starts or when you open the Settings tab. A tool you switch off yourself in Settings stays off.
 
+To make folgit open the same folder wherever you launch it, set `default_dir` (`~` and environment variables such as `%USERPROFILE%` or `$HOME` work), or open that folder in folgit and press `enter` on **Default folder** in Settings. `x` clears it. A folder given on the command line always wins, and if `default_dir` no longer exists folgit opens the current folder and says so.
+
 ```toml
+default_dir = "~/code"          # opened when no folder is given; "" means the current folder
 max_depth = 4
 clone_layout = "{repo}"          # or "{owner}/{repo}", "{host}/{owner}/{repo}"
 
