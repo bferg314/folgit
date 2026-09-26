@@ -57,10 +57,30 @@ func (s styles) agoStyle(t time.Time) lipgloss.Style {
 	}
 }
 
+// visibleName decides which runes of a path-like name fit in w cells:
+// runes[from:to], preceded by "…/" when dirs is true and followed by "…"
+// when cut is true. Names read from the start, so:
+//
+//   - if it fits, everything is shown
+//   - otherwise leading directories are dropped ("…/repo") so the repo's
+//     own name stays whole
+//   - if even that doesn't fit, the base name is cut at the end ("repo-na…")
+func visibleName(runes []rune, baseStart, w int) (from, to int, dirs, cut bool) {
+	n := len(runes)
+	switch {
+	case n <= w:
+		return 0, n, false, false
+	case baseStart > 0 && n-baseStart+2 <= w:
+		return baseStart, n, true, false
+	default:
+		return baseStart, baseStart + max(0, w-1), false, true
+	}
+}
+
 // highlightName renders a path-like name in w cells: the directory part is
 // muted, the base name is normal (or accent when selected), and fuzzy-matched
-// characters are highlighted. Long names are truncated from the left so the
-// base name stays visible. matches are byte offsets into name.
+// characters are highlighted. Long names are shortened by visibleName.
+// matches are byte offsets into name.
 func (s styles) highlightName(name string, w int, matches []int, selected bool) string {
 	runes := []rune(name)
 	matched := make(map[int]bool, len(matches))
@@ -70,10 +90,14 @@ func (s styles) highlightName(name string, w int, matches []int, selected bool) 
 	baseStart := strings.LastIndex(name, "/") + 1
 	baseStart = utf8.RuneCountInString(name[:baseStart])
 
-	offset, prefix := 0, ""
-	if len(runes) > w && w > 1 {
-		offset = len(runes) - (w - 1)
-		prefix = s.dim.Render("…")
+	offset, end, dirs, cut := visibleName(runes, baseStart, w)
+	runes = runes[:end]
+	prefix, suffix := "", ""
+	if dirs {
+		prefix = s.dim.Render("…/")
+	}
+	if cut {
+		suffix = s.dim.Render("…")
 	}
 
 	base := s.textS
@@ -102,5 +126,6 @@ func (s styles) highlightName(name string, w int, matches []int, selected bool) 
 			start = i
 		}
 	}
+	b.WriteString(suffix)
 	return fit(b.String(), w)
 }
