@@ -79,7 +79,29 @@ func Load(path string) (*Config, error) {
 	if cfg.MaxDepth <= 0 {
 		cfg.MaxDepth = Default().MaxDepth
 	}
+	if cfg.migrate() {
+		if err := cfg.Save(path); err != nil {
+			return nil, err
+		}
+	}
 	return cfg, nil
+}
+
+// migrate fixes defaults written by older versions. It only touches values
+// that still match the old default exactly, so user edits are left alone.
+func (c *Config) migrate() bool {
+	changed := false
+	want := agyTool()
+	for i := range c.Tools {
+		t := &c.Tools[i]
+		// Before v0.3 agy defaulted to detach mode everywhere, but on Linux
+		// it is a terminal program.
+		if t.Cmd == "agy" && t.Mode == ModeDetach && len(t.Args) == 1 && t.Args[0] == "{path}" && want.Mode != ModeDetach {
+			t.Mode, t.Args = want.Mode, want.Args
+			changed = true
+		}
+	}
+	return changed
 }
 
 // Save writes the config to path, creating parent directories as needed.
@@ -119,13 +141,25 @@ func Default() *Config {
 			{Name: "Claude Code", Cmd: "claude", Key: "c", Mode: ModeTerminal},
 			{Name: "Codex", Cmd: "codex", Key: "x", Mode: ModeTerminal},
 			{Name: "Gemini", Cmd: "gemini", Key: "m", Mode: ModeTerminal},
-			{Name: "Antigravity", Cmd: "agy", Args: []string{"{path}"}, Key: "a", Mode: ModeDetach},
+			agyTool(),
 			{Name: "VS Code", Cmd: "code", Args: []string{"{path}"}, Key: "o", Mode: ModeDetach},
 			{Name: "Cursor", Cmd: "cursor", Args: []string{"{path}"}, Key: "u", Mode: ModeDetach},
 			{Name: "lazygit", Cmd: "lazygit", Key: "l", Mode: ModeTerminal},
 			fileManager(),
 		},
 	}
+}
+
+// agyTool is Antigravity: a desktop launcher on Windows and macOS, but a
+// terminal program on Linux, where it must keep the TTY.
+func agyTool() Tool {
+	t := Tool{Name: "Antigravity", Cmd: "agy", Key: "a"}
+	if runtime.GOOS == "linux" {
+		t.Mode = ModeTerminal
+	} else {
+		t.Mode, t.Args = ModeDetach, []string{"{path}"}
+	}
+	return t
 }
 
 func fileManager() Tool {
