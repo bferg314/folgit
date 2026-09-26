@@ -8,24 +8,49 @@ import (
 	"testing"
 )
 
-func TestMigrateAgy(t *testing.T) {
-	c := &Config{Version: configVersion, Tools: []Tool{
-		{Name: "Antigravity", Cmd: "agy", Args: []string{"{path}"}, Key: "a", Mode: ModeDetach},
-		{Name: "Custom agy", Cmd: "agy", Args: []string{"--new-window", "{path}"}, Key: "A", Mode: ModeDetach},
+func TestMigrateAntigravity(t *testing.T) {
+	fakePath(t, "agy", "antigravity-ide")
+	c := &Config{Version: 1, Tools: []Tool{
+		{Name: "Claude Code", Cmd: "claude", Key: "c", Mode: ModeTerminal, Enabled: true},
+		{Name: "Gemini", Cmd: "gemini", Key: "m", Mode: ModeTerminal, AutoDisabled: true},
+		{Name: "Antigravity", Cmd: "agy", Args: []string{"{path}"}, Key: "a", Mode: ModeDetach, Enabled: true},
+		{Name: "Custom agy", Cmd: "agy", Args: []string{"--new-window", "{path}"}, Key: "N", Mode: ModeDetach},
+		{Name: "VS Code", Cmd: "code", Args: []string{"{path}"}, Key: "o", Mode: ModeDetach},
 	}}
-	changed := c.migrate()
+	if !c.migrate() || c.Version != 2 {
+		t.Fatalf("expected a v2 migration, version=%d", c.Version)
+	}
 
-	if runtime.GOOS != "linux" {
-		if changed || c.Tools[0].Mode != ModeDetach {
-			t.Fatalf("migrate changed agy on %s: %+v", runtime.GOOS, c.Tools[0])
-		}
-		return
+	var names []string
+	for _, tool := range c.Tools {
+		names = append(names, tool.Name)
 	}
-	if !changed || c.Tools[0].Mode != ModeTerminal || len(c.Tools[0].Args) != 0 {
-		t.Fatalf("old default not migrated: %+v", c.Tools[0])
+	if got := strings.Join(names, ","); got != "Claude Code,Antigravity,Antigravity IDE,Custom agy,VS Code" {
+		t.Fatalf("tools = %s", got)
 	}
-	if c.Tools[1].Mode != ModeDetach {
-		t.Fatalf("user-customised tool was changed: %+v", c.Tools[1])
+	if agy := c.Tools[1]; agy.Mode != ModeTerminal || len(agy.Args) != 0 || !agy.Enabled {
+		t.Errorf("agy should run in the terminal: %+v", agy)
+	}
+	if ide := c.Tools[2]; ide.Mode != ModeDetach || !ide.Enabled || ide.Key != "A" {
+		t.Errorf("IDE should be added, detached and enabled (installed): %+v", ide)
+	}
+	if custom := c.Tools[3]; custom.Mode != ModeDetach {
+		t.Errorf("user-customised agy entry was changed: %+v", custom)
+	}
+
+	// Running it again changes nothing.
+	if c.migrate() || len(c.Tools) != 5 {
+		t.Fatalf("second migrate changed things: %+v", c.Tools)
+	}
+}
+
+// A Gemini entry the user switched on is kept.
+func TestMigrateKeepsEnabledGemini(t *testing.T) {
+	fakePath(t)
+	c := &Config{Version: 1, Tools: []Tool{{Name: "Gemini", Cmd: "gemini", Key: "m", Mode: ModeTerminal, Enabled: true}}}
+	c.migrate()
+	if c.Tools[0].Name != "Gemini" || c.Tools[1].Name != "Antigravity IDE" || c.Tools[1].Enabled || !c.Tools[1].AutoDisabled {
+		t.Fatalf("got %+v", c.Tools)
 	}
 }
 
@@ -128,7 +153,7 @@ func TestLoadUpgradesUnversionedConfig(t *testing.T) {
 
 	// The upgrade was saved, and loading again changes nothing.
 	data, _ := os.ReadFile(path)
-	if !strings.Contains(string(data), "version = 1") || !strings.Contains(string(data), "auto_disabled = true") {
+	if !strings.Contains(string(data), "version = 2") || !strings.Contains(string(data), "auto_disabled = true") {
 		t.Fatalf("upgrade not saved:\n%s", data)
 	}
 	if c2, err := Load(path); err != nil || !c2.Tools[1].Enabled || c2.Tools[2].Enabled {

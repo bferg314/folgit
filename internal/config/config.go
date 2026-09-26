@@ -103,7 +103,8 @@ func Load(path string) (*Config, error) {
 //
 //	0: no version key; tool detection ran only when the file was created
 //	1: tools folgit disabled for being missing carry auto_disabled
-const configVersion = 1
+//	2: agy is a terminal tool everywhere, Antigravity IDE replaces Gemini
+const configVersion = 2
 
 // migrate upgrades older configs. It only touches values that still match
 // an old default, so user edits are left alone.
@@ -121,17 +122,48 @@ func (c *Config) migrate() bool {
 		c.Version = 1
 		changed = true
 	}
-	want := agyTool()
-	for i := range c.Tools {
-		t := &c.Tools[i]
-		// Before v0.3 agy defaulted to detach mode everywhere, but on Linux
-		// it is a terminal program.
-		if t.Cmd == "agy" && t.Mode == ModeDetach && len(t.Args) == 1 && t.Args[0] == "{path}" && want.Mode != ModeDetach {
-			t.Mode, t.Args = want.Mode, want.Args
-			changed = true
-		}
+	if c.Version < 2 {
+		c.migrateAntigravity()
+		c.Version = 2
+		changed = true
 	}
 	return changed
+}
+
+// migrateAntigravity (v2): agy is a terminal program on every platform, the
+// Antigravity IDE gets its own detached tool, and Gemini is dropped.
+func (c *Config) migrateAntigravity() {
+	tools := c.Tools[:0]
+	hasIDE := false
+	for _, t := range c.Tools {
+		switch {
+		// The old default ran agy detached with the repo path (except on
+		// Linux, which v0.3 already fixed). Customised entries are kept.
+		case t.Cmd == "agy" && t.Mode == ModeDetach && len(t.Args) == 1 && t.Args[0] == "{path}":
+			t.Mode, t.Args = ModeTerminal, nil
+		// Drop the old Gemini default unless the user switched it on.
+		case t.Cmd == "gemini" && t.Name == "Gemini" && !t.Enabled:
+			continue
+		case t.Cmd == antigravityIDE().Cmd:
+			hasIDE = true
+		}
+		tools = append(tools, t)
+	}
+	if !hasIDE {
+		ide := antigravityIDE()
+		ok := Available(ide.Cmd)
+		ide.Enabled, ide.AutoDisabled = ok, !ok
+		// Keep it next to agy when there is one.
+		at := len(tools)
+		for i, t := range tools {
+			if t.Cmd == "agy" {
+				at = i + 1
+				break
+			}
+		}
+		tools = append(tools[:at], append([]Tool{ide}, tools[at:]...)...)
+	}
+	c.Tools = tools
 }
 
 // Save writes the config to path, creating parent directories as needed.
@@ -187,8 +219,8 @@ func Default() *Config {
 		Tools: []Tool{
 			{Name: "Claude Code", Cmd: "claude", Key: "c", Mode: ModeTerminal},
 			{Name: "Codex", Cmd: "codex", Key: "x", Mode: ModeTerminal},
-			{Name: "Gemini", Cmd: "gemini", Key: "m", Mode: ModeTerminal},
-			agyTool(),
+			{Name: "Antigravity", Cmd: "agy", Key: "a", Mode: ModeTerminal},
+			antigravityIDE(),
 			{Name: "VS Code", Cmd: "code", Args: []string{"{path}"}, Key: "o", Mode: ModeDetach},
 			{Name: "Cursor", Cmd: "cursor", Args: []string{"{path}"}, Key: "u", Mode: ModeDetach},
 			{Name: "lazygit", Cmd: "lazygit", Key: "l", Mode: ModeTerminal},
@@ -197,16 +229,11 @@ func Default() *Config {
 	}
 }
 
-// agyTool is Antigravity: a desktop launcher on Windows and macOS, but a
-// terminal program on Linux, where it must keep the TTY.
-func agyTool() Tool {
-	t := Tool{Name: "Antigravity", Cmd: "agy", Key: "a"}
-	if runtime.GOOS == "linux" {
-		t.Mode = ModeTerminal
-	} else {
-		t.Mode, t.Args = ModeDetach, []string{"{path}"}
-	}
-	return t
+// antigravityIDE opens a repo in the Antigravity IDE through its CLI
+// launcher (antigravity-ide, like VS Code's code), which the installer puts
+// on PATH.
+func antigravityIDE() Tool {
+	return Tool{Name: "Antigravity IDE", Cmd: "antigravity-ide", Args: []string{"{path}"}, Key: "A", Mode: ModeDetach}
 }
 
 func fileManager() Tool {
