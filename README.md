@@ -2,6 +2,8 @@
 
 A terminal dashboard for every git repository under a directory, plus the GitHub repositories you haven't cloned yet.
 
+![folgit's Local tab: repos with branch, status and last commit, a detail pane of recent commits and branches, and the Powerline status bar](docs/screenshot.png)
+
 ```
 folgit            # scan default_dir if set, otherwise the current directory
 folgit ~/code     # scan this folder (always wins over default_dir)
