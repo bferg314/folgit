@@ -7,6 +7,18 @@ folgit            # scan the current directory
 folgit ~/code     # scan somewhere else
 ```
 
+## Install
+
+You need Go 1.27 or newer and `git` on your PATH.
+
+```sh
+go install github.com/bferg314/folgit/cmd/folgit@latest
+```
+
+This puts the `folgit` binary in `$(go env GOPATH)/bin`, which is `~/go/bin` or `%USERPROFILE%\go\bin` unless you've changed it. Make sure that folder is on your PATH. Run the same command again to update.
+
+For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh auth login`) or set `GITHUB_TOKEN`. See [GitHub auth](#github-auth).
+
 ## Tabs
 
 - **Local**: every repo found, with its branch, status and the time of its last commit. Press `enter` to choose a tool to open it in, or press a tool's key directly. `g` quits and moves your shell into the repo (see [Shell integration](#shell-integration)). `p` pulls (fast-forward only), `r` rescans, `s` changes the sort order, `/` filters.
@@ -67,3 +79,26 @@ enabled = true
 go build ./cmd/folgit
 go test ./...
 ```
+
+## Known limitations
+
+- Clones and pulls run in the background with no terminal to type into. If your SSH key needs a passphrase and isn't loaded in an agent, git can hang or draw over the screen. HTTPS logins can't prompt, so they fail with an error instead.
+- Changing a setting in the Settings tab rewrites `config.toml`, which removes any comments you added by hand.
+- GitHub is the only hosting service supported so far.
+
+## Roadmap
+
+Possible next steps, roughly in priority order:
+
+- **Unpushed-work report.** One view of every repo with uncommitted changes, unpushed commits, stashes or branches that exist only on this machine, so you can tell whether it's safe to wipe it.
+- **Fetch and pull in bulk.** Fetch every repo in the background and fast-forward the ones that can be, skipping any with local changes.
+- **Releases.** A GoReleaser config and a GitHub Actions workflow so that tagging a version publishes binaries for Windows, macOS and Linux, plus Homebrew and Scoop packages. Installing would no longer need Go.
+- **Detail pane.** Recent commits, branches, remotes and a README preview for the selected repo.
+- **PR and CI badges.** Open pull requests and the latest CI result for each repo, using the same GitHub token.
+- **Scriptable commands.** Non-interactive output such as `folgit ls --dirty --json` for scripts and shell prompts.
+- **Branch cleanup.** Find local branches that are already merged or whose remote branch is gone, and delete them in bulk.
+- **Pinned and hidden repos.** Keep favourites at the top and hide old experiments without deleting them.
+- **Worktrees.** List each repo's worktrees under it.
+- **Moving machines.** `folgit export` writes a list of your repos; `folgit import` clones the same set on another machine.
+- **Disk usage and archiving.** Show each repo's size, and delete a local copy once everything in it is pushed.
+- **More hosts.** GitLab, Gitea or Bitbucket, if they're ever needed.
