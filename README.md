@@ -26,6 +26,7 @@ For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh 
   - **Detail pane:** on terminals at least 100 columns wide, a pane beside the list shows the selected repo's working tree state, recent commits, branches (including ones whose upstream is gone or that exist only locally), remotes and the start of its README. `d` hides it. On narrower terminals `d` shows it full screen and `esc` closes it.
   - **Scrolling the details:** `J`/`K` scroll the pane a line at a time and `ctrl+d`/`ctrl+u` half a page. The repo name, branch and change summary stay at the top, and a percentage beside the name shows your position. In the full-screen view, `j`/`k`, the arrow keys and `pgup`/`pgdn` scroll as well.
   - **Issues:** `i` opens the selected repo's open GitHub issues, most recently updated first, with labels and when each was last updated. `j`/`k` move, `enter` opens the issue in your browser, `r` refreshes and `esc` closes. Pull requests are left out. folgit tries each GitHub remote in turn, so a fork with issues turned off falls back to its upstream remote. `i` works on the Remote tab too.
+  - **Branch cleanup:** `b` lists the selected repo's stale local branches and `B` lists them across every repo. A branch is stale if it's already merged into the default branch (origin's default, falling back to `main` or `master`), or if the remote branch it tracked has been deleted, as GitHub does after merging a PR. The branch you're on and long-lived branches (`main`, `master`, `develop`, `dev`, `trunk`) are never listed. Merged branches start selected. A deleted-remote branch with commits that aren't in the default branch, such as a squash-merged PR, shows how many and starts unselected. `space` and `a` change the selection, `enter` asks to confirm and `y` deletes. `f` fetches with `--prune` and checks again, so branches deleted on GitHub show up. Each deleted branch's commit hash is shown, so `git branch <name> <hash>` restores it.
 - **Remote**: your GitHub repos that aren't on this machine. `space` selects, `a` selects all, `enter` clones into the scanned directory.
 - **Settings**: turn tools and GitHub listing options on and off.
 
@@ -98,7 +99,6 @@ Possible next steps, roughly in priority order:
 - **Releases.** A GoReleaser config and a GitHub Actions workflow so that tagging a version publishes binaries for Windows, macOS and Linux, plus Homebrew and Scoop packages. Installing would no longer need Go.
 - **PR and CI badges.** Open pull requests and the latest CI result for each repo, using the same GitHub token.
 - **Scriptable commands.** Non-interactive output such as `folgit ls --dirty --json` for scripts and shell prompts.
-- **Branch cleanup.** Find local branches that are already merged or whose remote branch is gone, and delete them in bulk.
 - **Pinned and hidden repos.** Keep favourites at the top and hide old experiments without deleting them.
 - **Worktrees.** List each repo's worktrees under it.
 - **Moving machines.** `folgit export` writes a list of your repos; `folgit import` clones the same set on another machine.

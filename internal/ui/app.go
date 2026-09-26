@@ -38,7 +38,7 @@ const chromeLines = 5
 // Keys folgit handles itself; tools bound to these are shadowed.
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
-	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true,
+	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true,
 }
 
@@ -70,9 +70,10 @@ type App struct {
 	cdTarget string
 	remoteAt time.Time
 
-	bulk   *bulkOp
-	issues *issuesView
-	detail detailState
+	bulk    *bulkOp
+	issues  *issuesView
+	cleanup *cleanupView
+	detail  detailState
 }
 
 type toast struct {
@@ -235,7 +236,8 @@ func refreshStatus(path string) tea.Cmd {
 
 func (a *App) busy() bool {
 	return a.local.scanning || a.remote.loading || a.local.anyBusy() || len(a.remote.cloning) > 0 ||
-		a.bulk != nil || a.detailLoading() || a.issues != nil && a.issues.loading
+		a.bulk != nil || a.detailLoading() || a.issues != nil && a.issues.loading ||
+		a.cleanup != nil && (a.cleanup.loading || a.cleanup.deleting)
 }
 
 func (a *App) startSpinner() tea.Cmd {
@@ -340,6 +342,13 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(loadDetails(msg.path), a.startSpinner())
 
+	case cleanupScanMsg:
+		a.handleCleanupScan(msg)
+		return a, nil
+
+	case cleanupDoneMsg:
+		return a, a.handleCleanupDone(msg)
+
 	case issuesMsg:
 		a.handleIssues(msg)
 		return a, nil
@@ -420,6 +429,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if a.help {
 		a.help = false
 		return nil
+	}
+	if a.cleanup != nil {
+		return a.cleanupKey(key)
 	}
 	if a.issues != nil {
 		return a.issuesKey(key)
@@ -577,6 +589,8 @@ func (a *App) render() string {
 	switch {
 	case a.help:
 		overlay = a.renderHelp()
+	case a.cleanup != nil:
+		overlay = a.renderCleanup()
 	case a.issues != nil:
 		overlay = a.renderIssues()
 	case a.popup != nil:
@@ -674,7 +688,7 @@ func (a *App) renderHelpLine() string {
 	case tabLocal:
 		// Tool keys go last: they're the first thing to drop on narrow terminals.
 		pairs = [][2]string{{"enter", "open"}, {"g", "cd"}, {"p", "pull"}, {"F", "fetch all"}, {"P", "pull all"},
-			{"d", "details"}, {"i", "issues"}}
+			{"d", "details"}, {"i", "issues"}, {"b", "branches"}}
 		if a.detail.maxScroll > 0 && a.detailLayout() != layoutNone {
 			pairs = append(pairs, [2]string{"J/K", "scroll details"})
 		}
@@ -722,6 +736,7 @@ func (a *App) renderHelp() string {
 		row("F", "fetch all repos"),
 		row("d", "toggle the detail pane"),
 		row("i", "GitHub issues for the repo"),
+		row("b / B", "clean up stale branches: this repo · all repos"),
 		row("J / K", "scroll details (ctrl+d/u half page)"),
 		row("r / R", "rescan local · reload remote"),
 		"",

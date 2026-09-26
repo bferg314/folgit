@@ -206,6 +206,10 @@ func (a *App) localKey(key string) tea.Cmd {
 		return a.startBulk(true)
 	case "d":
 		a.toggleDetails()
+	case "b":
+		return a.openCleanup(false)
+	case "B":
+		return a.openCleanup(true)
 	case "i":
 		return a.localIssues()
 	case "g":
