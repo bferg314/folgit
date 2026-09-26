@@ -175,6 +175,9 @@ func (t *localTab) move(delta int) {
 // ---- keys ----
 
 func (a *App) localKey(key string) tea.Cmd {
+	if a.detailScrollKey(key) {
+		return nil
+	}
 	t := &a.local
 	page := max(1, a.h-8)
 	switch key {
