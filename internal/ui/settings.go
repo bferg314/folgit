@@ -48,6 +48,7 @@ func (a *App) settingItems() []settingItem {
 		settingItem{section: "GitHub", label: "Forks", on: &gh.IncludeForks, remote: true},
 		settingItem{section: "GitHub", label: "Archived repos", on: &gh.IncludeArchived, remote: true},
 		settingItem{section: "Scanning", label: "Scan hidden directories", on: &a.cfg.ScanHidden},
+		settingItem{section: "Appearance", label: "Powerline status bar", detail: "arrow separators; needs a Nerd Font", on: &a.cfg.Powerline},
 	)
 	return items
 }

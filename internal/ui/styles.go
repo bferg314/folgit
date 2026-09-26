@@ -9,6 +9,7 @@ import (
 // styles holds the palette, rebuilt when the terminal reports its background.
 type styles struct {
 	accent, accentFg, text, muted, faint, green, yellow, red, blue, magenta color.Color
+	barMid, barLow                                                          color.Color // status bar backgrounds
 
 	logo, tabOn, tabOff, colHead, dim, faintText, textS, bold lipgloss.Style
 	marker, selName, branch, match, rule, box, boxTitle, key  lipgloss.Style
@@ -29,6 +30,8 @@ func newStyles(dark bool) styles {
 		red:      ld(c("#DC2626"), c("#F87171")),
 		blue:     ld(c("#0369A1"), c("#7DD3FC")),
 		magenta:  ld(c("#BE185D"), c("#F9A8D4")),
+		barMid:   ld(c("#D4D4D8"), c("#3F3F46")),
+		barLow:   ld(c("#F4F4F5"), c("#27272A")),
 	}
 	fg := func(col color.Color) lipgloss.Style { return lipgloss.NewStyle().Foreground(col) }
 
