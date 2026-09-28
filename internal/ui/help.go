@@ -34,6 +34,8 @@ func (a *App) renderHelp() string {
 		row("i", "GitHub issues"),
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
+		row("* / h", "pin to the top · hide"),
+		row("H", "show / hide hidden repos"),
 		row("r", "rescan"),
 	}
 

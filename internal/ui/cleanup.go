@@ -52,12 +52,15 @@ type (
 	}
 )
 
-// openCleanup starts the popup for the selected repo, or for every repo.
+// openCleanup starts the popup for the selected repo, or for every repo
+// that isn't hidden.
 func (a *App) openCleanup(all bool) tea.Cmd {
 	v := &cleanupView{multi: all}
 	if all {
-		for p := range a.local.rows {
-			v.paths = append(v.paths, p)
+		for p, r := range a.local.rows {
+			if !r.hidden {
+				v.paths = append(v.paths, p)
+			}
 		}
 		sort.Strings(v.paths)
 		v.title = fmt.Sprintf("%d repos", len(v.paths))

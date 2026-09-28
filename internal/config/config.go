@@ -60,6 +60,10 @@ type Config struct {
 	// Nerd Font or Powerline-patched font.
 	Powerline bool     `toml:"powerline"`
 	Ignore    []string `toml:"ignore"`
+	// Pinned repos sort to the top of the Local tab and Hidden repos are
+	// left out of it. Both hold repo paths, with the home directory as ~.
+	Pinned []string `toml:"pinned"`
+	Hidden []string `toml:"hidden"`
 	// CloneLayout decides where remote repos are cloned, relative to the
 	// scanned directory. Supports {host}, {owner} and {repo}.
 	CloneLayout string `toml:"clone_layout"`

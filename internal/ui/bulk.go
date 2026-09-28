@@ -43,7 +43,7 @@ type bulkItemMsg struct {
 	err     error
 }
 
-// startBulk fetches every repo that has a remote. With pull, it then
+// startBulk fetches every repo that has a remote and isn't hidden. With pull, it then
 // fast-forwards repos that are clean, behind and not ahead; everything else
 // is left alone.
 func (a *App) startBulk(pull bool) tea.Cmd {
@@ -52,7 +52,7 @@ func (a *App) startBulk(pull bool) tea.Cmd {
 	}
 	var paths []string
 	for _, r := range a.local.rows {
-		if r.busy == "" && r.status != nil && r.status.Err == nil && len(r.status.Remotes) > 0 {
+		if !r.hidden && r.busy == "" && r.status != nil && r.status.Err == nil && len(r.status.Remotes) > 0 {
 			paths = append(paths, r.path)
 		}
 	}

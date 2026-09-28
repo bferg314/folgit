@@ -39,7 +39,7 @@ const chromeLines = 3
 var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
 	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true, "w": true,
-	"j": true, "k": true, "1": true, "2": true, "3": true,
+	"j": true, "k": true, "1": true, "2": true, "3": true, "*": true, "h": true, "H": true,
 }
 
 // App is the root model.
@@ -123,7 +123,7 @@ func New(cfg *config.Config, cfgPath, root string, cached *cache.File, cwdFile s
 		cfgPath: cfgPath,
 		root:    root,
 		st:      newStyles(true),
-		local:   newLocalTab(),
+		local:   newLocalTab(cfg),
 		remote:  newRemoteTab(),
 		detail:  detailState{show: true, cache: make(map[string]*gitinfo.Details)},
 		cwdFile: cwdFile,
@@ -632,7 +632,7 @@ func padLines(s string, h, w int) string {
 func (a *App) renderHeader() string {
 	logo := a.st.logo.Render(" ◆ folgit ")
 	counts := []string{
-		fmt.Sprintf("%d", len(a.local.rows)),
+		fmt.Sprintf("%d", len(a.local.rows)-a.local.hiddenCount()),
 		fmt.Sprintf("%d", a.remote.missing),
 		"",
 	}
