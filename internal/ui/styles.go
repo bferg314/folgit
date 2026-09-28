@@ -13,7 +13,7 @@ type styles struct {
 
 	logo, tabOn, tabOff, colHead, dim, faintText, textS, bold lipgloss.Style
 	marker, selName, branch, match, rule, box, boxTitle, key  lipgloss.Style
-	ok, warn, bad, ahead, behind                              lipgloss.Style
+	ok, warn, bad, ahead, behind, pin                         lipgloss.Style
 }
 
 func newStyles(dark bool) styles {
@@ -56,5 +56,6 @@ func newStyles(dark bool) styles {
 	s.bad = fg(s.red).Bold(true)
 	s.ahead = fg(s.blue)
 	s.behind = fg(s.magenta)
+	s.pin = fg(s.yellow)
 	return s
 }

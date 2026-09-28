@@ -24,6 +24,7 @@ For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh 
 ## Tabs
 
 - **Local**: every repo found, with its branch, status and the time of its last commit. Press `enter` to choose a tool to open it in, or press a tool's key directly. `g` quits and moves your shell into the repo (see [Shell integration](#shell-integration)). `w` opens the repo's web page (from its first remote, so GitHub, GitLab and others all work) in your default browser. `r` rescans, `s` changes the sort order, `/` filters.
+  - **Pinned and hidden repos:** `*` pins the selected repo to the top of the list, whatever the sort order, and marks it with ★. `h` hides a repo you're not using any more without deleting it. Hidden repos are left out of the list, the tab count, the status bar totals, `F`, `P` and `B`. `H` shows them again, marked with ⊘, and `h` on one unhides it. Pinning a hidden repo unhides it, and hiding a pinned one unpins it. Both lists are kept in the config file.
   - **Pulling:** `p` pulls the selected repo (fast-forward only). `F` fetches every repo, 8 at a time, so the ↓ counts are current. `P` fetches every repo too, then pulls the ones that are behind and have no local changes or unpushed commits. Everything else is left alone and counted as skipped.
   - **Detail pane:** on terminals at least 100 columns wide, a pane beside the list shows the selected repo's working tree state, recent commits, branches (including ones whose upstream is gone or that exist only locally), remotes and the start of its README. `d` hides it. On narrower terminals `d` shows it full screen and `esc` closes it.
   - **Scrolling the details:** `J`/`K` scroll the pane a line at a time and `ctrl+d`/`ctrl+u` half a page. The repo name, branch and change summary stay at the top, and a percentage beside the name shows your position. In the full-screen view, `j`/`k`, the arrow keys and `pgup`/`pgdn` scroll as well.
@@ -74,6 +75,8 @@ To make folgit open the same folder wherever you launch it, set `default_dir` (`
 default_dir = "~/code"          # opened when no folder is given; "" means the current folder
 max_depth = 4
 clone_layout = "{repo}"          # or "{owner}/{repo}", "{host}/{owner}/{repo}"
+pinned = ["~/code/folgit"]       # set with * on the Local tab
+hidden = ["~/code/scratch"]      # set with h
 
 [[tools]]
 name = "Claude Code"
@@ -113,7 +116,6 @@ Possible next steps, roughly in priority order:
 - **Releases.** A GoReleaser config and a GitHub Actions workflow so that tagging a version publishes binaries for Windows, macOS and Linux, plus Homebrew and Scoop packages. Installing would no longer need Go.
 - **PR and CI badges.** Open pull requests and the latest CI result for each repo, using the same GitHub token.
 - **Scriptable commands.** Non-interactive output such as `folgit ls --dirty --json` for scripts and shell prompts.
-- **Pinned and hidden repos.** Keep favourites at the top and hide old experiments without deleting them.
 - **Worktrees.** List each repo's worktrees under it.
 - **Moving machines.** `folgit export` writes a list of your repos; `folgit import` clones the same set on another machine.
 - **Disk usage and archiving.** Show each repo's size, and delete a local copy once everything in it is pushed.

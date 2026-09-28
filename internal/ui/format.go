@@ -129,3 +129,11 @@ func (s styles) highlightName(name string, w int, matches []int, selected bool) 
 	b.WriteString(suffix)
 	return fit(b.String(), w)
 }
+
+// plural picks one or many to agree with n.
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
+}

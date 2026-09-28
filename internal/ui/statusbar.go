@@ -316,12 +316,12 @@ func (a *App) barActivity() segment {
 	return seg(st.barMid, part{text: a.spin.View(), fg: st.accent}, part{text: " " + what, fg: st.text})
 }
 
-// barSummary totals the state of every local repo.
+// barSummary totals the state of every local repo that isn't hidden.
 func (a *App) barSummary() segment {
 	st := a.st
 	var dirty, ahead, behind, conflicts int
 	for _, r := range a.local.rows {
-		if r.status == nil || r.status.Err != nil {
+		if r.hidden || r.status == nil || r.status.Err != nil {
 			continue
 		}
 		if r.status.Conflicts > 0 {
@@ -351,7 +351,7 @@ func (a *App) barSummary() segment {
 	add(ahead, "↑%d to push", st.blue)
 	add(behind, "↓%d to pull", st.magenta)
 	if len(parts) == 0 {
-		if len(a.local.rows) == 0 {
+		if len(a.local.rows) == a.local.hiddenCount() {
 			return segment{}
 		}
 		parts = append(parts, part{text: "✓ all clean", fg: st.green})

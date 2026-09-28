@@ -12,8 +12,10 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sahilm/fuzzy"
 
+	"github.com/bferg314/folgit/internal/config"
 	"github.com/bferg314/folgit/internal/gitinfo"
 	"github.com/bferg314/folgit/internal/launcher"
 	"github.com/bferg314/folgit/internal/repos"
@@ -36,9 +38,12 @@ type localRepo struct {
 	busy    string // e.g. "pulling"
 	gen     int
 	matches []int
+	// pinned and hidden mirror the config; refresh keeps them current.
+	pinned, hidden bool
 }
 
 type localTab struct {
+	cfg      *config.Config
 	rows     map[string]*localRepo
 	view     []*localRepo
 	cursor   int
@@ -47,10 +52,12 @@ type localTab struct {
 	filter   textinput.Model
 	scanning bool
 	events   <-chan repos.Event
+	// showHidden lists hidden repos too, marked as hidden.
+	showHidden bool
 }
 
-func newLocalTab() localTab {
-	return localTab{rows: make(map[string]*localRepo), filter: newFilter()}
+func newLocalTab(cfg *config.Config) localTab {
+	return localTab{cfg: cfg, rows: make(map[string]*localRepo), filter: newFilter()}
 }
 
 func newFilter() textinput.Model {
@@ -115,10 +122,15 @@ func (t *localTab) refresh() {
 		keep = r.path
 	}
 
+	pinned, hidden := t.cfg.RepoMarks()
 	all := make([]*localRepo, 0, len(t.rows))
 	for _, r := range t.rows {
 		r.matches = nil
-		all = append(all, r)
+		key := config.RepoKey(r.path)
+		r.pinned, r.hidden = pinned[key], hidden[key]
+		if !r.hidden || t.showHidden {
+			all = append(all, r)
+		}
 	}
 	sort.Slice(all, func(i, j int) bool { return t.less(all[i], all[j]) })
 
@@ -146,7 +158,11 @@ func (t *localTab) refresh() {
 	}
 }
 
+// less puts pinned repos first, then orders by the chosen sort.
 func (t *localTab) less(a, b *localRepo) bool {
+	if a.pinned != b.pinned {
+		return a.pinned
+	}
 	switch t.sort {
 	case sortDirty:
 		ad, bd := a.status != nil && a.status.Dirty(), b.status != nil && b.status.Dirty()
@@ -168,6 +184,17 @@ func lastCommit(r *localRepo) (t0 time.Time) {
 		return r.status.LastCommit
 	}
 	return t0
+}
+
+// hiddenCount is how many repos are hidden, shown or not.
+func (t *localTab) hiddenCount() int {
+	n := 0
+	for _, r := range t.rows {
+		if r.hidden {
+			n++
+		}
+	}
+	return n
 }
 
 func (t *localTab) move(delta int) {
@@ -214,6 +241,12 @@ func (a *App) localKey(key string) tea.Cmd {
 		return a.localWeb()
 	case "i":
 		return a.localIssues()
+	case "*":
+		return a.togglePinned()
+	case "h":
+		return a.toggleHidden()
+	case "H":
+		return a.toggleShowHidden()
 	case "g":
 		r := t.selected()
 		switch {
@@ -257,6 +290,57 @@ func (a *App) localKey(key string) tea.Cmd {
 	return nil
 }
 
+// togglePinned pins or unpins the selected repo.
+func (a *App) togglePinned() tea.Cmd {
+	r := a.local.selected()
+	if r == nil {
+		return nil
+	}
+	a.cfg.SetPinned(r.path, !r.pinned)
+	a.local.refresh()
+	msg := "Pinned %s to the top"
+	if !r.pinned {
+		msg = "Unpinned %s"
+	}
+	return tea.Batch(a.saveConfig(), a.notify(1, msg, r.rel))
+}
+
+// toggleHidden hides the selected repo, or unhides it when hidden repos
+// are being shown.
+func (a *App) toggleHidden() tea.Cmd {
+	r := a.local.selected()
+	if r == nil {
+		return nil
+	}
+	a.cfg.SetHidden(r.path, !r.hidden)
+	a.local.refresh()
+	var note tea.Cmd
+	switch {
+	case !r.hidden:
+		note = a.notify(1, "%s is no longer hidden", r.rel)
+	case a.local.showHidden:
+		note = a.notify(1, "Hid %s", r.rel)
+	default:
+		note = a.notify(1, "Hid %s · H shows hidden repos", r.rel)
+	}
+	return tea.Batch(a.saveConfig(), note)
+}
+
+// toggleShowHidden shows or hides the hidden repos in the list.
+func (a *App) toggleShowHidden() tea.Cmd {
+	t := &a.local
+	n := t.hiddenCount()
+	if n == 0 && !t.showHidden {
+		return a.notify(0, "No hidden repos: h hides the selected one")
+	}
+	t.showHidden = !t.showHidden
+	t.refresh()
+	if t.showHidden {
+		return a.notify(0, "Showing %d hidden %s · h unhides · H hides them again", n, plural(n, "repo", "repos"))
+	}
+	return a.notify(0, "Hiding %d %s", n, plural(n, "repo", "repos"))
+}
+
 // ---- view ----
 
 func (a *App) renderLocal(w, h int) string {
@@ -276,6 +360,8 @@ func (a *App) renderLocal(w, h int) string {
 			msg = "Scanning for repositories…"
 		case t.filter.Value() != "":
 			msg = "Nothing matches that filter."
+		case len(t.rows) > 0:
+			msg = "Every repo here is hidden. Press H to show them."
 		}
 		lines = append(lines, "", "   "+st.dim.Render(msg))
 		return strings.Join(lines, "\n")
@@ -285,7 +371,11 @@ func (a *App) renderLocal(w, h int) string {
 	// repo name has priority over the branch when space is short.
 	const agoW, minBranchW = 9, 12
 	statusW, branchW, wantName := len("STATUS"), len("BRANCH"), len("REPOSITORY")
+	markW := 2 // cursor marker
 	for _, r := range t.view {
+		if r.pinned || r.hidden {
+			markW = 4 // and a pin or hidden flag
+		}
 		wantName = max(wantName, utf8.RuneCountInString(r.rel))
 		switch {
 		case r.busy != "":
@@ -297,13 +387,13 @@ func (a *App) renderLocal(w, h int) string {
 	}
 	statusW = min(statusW, 16)
 	branchW = min(branchW, 28)
-	avail := w - 2 - statusW - agoW - 6 // marker and three gaps
+	avail := w - markW - statusW - agoW - 6 // three gaps
 	if wantName+branchW > avail {
 		branchW = max(min(branchW, minBranchW), avail-wantName)
 	}
 	nameW := max(10, avail-branchW)
 
-	lines = append(lines, "  "+
+	lines = append(lines, strings.Repeat(" ", markW)+
 		fit(st.colHead.Render("REPOSITORY"), nameW)+"  "+
 		fit(st.colHead.Render("BRANCH"), branchW)+"  "+
 		fit(st.colHead.Render("STATUS"), statusW)+"  "+
@@ -326,7 +416,20 @@ func (a *App) renderLocal(w, h int) string {
 		if sel {
 			marker = st.marker.Render("▌") + " "
 		}
+		if markW > 2 {
+			switch {
+			case r.pinned:
+				marker += st.pin.Render("★") + " "
+			case r.hidden:
+				marker += st.dim.Render("⊘") + " "
+			default:
+				marker += "  "
+			}
+		}
 		name := st.highlightName(r.rel, nameW, r.matches, sel)
+		if r.hidden && !sel {
+			name = st.dim.Render(ansi.Strip(name))
+		}
 
 		var branch, status, when string
 		switch {
