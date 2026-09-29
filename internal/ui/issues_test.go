@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -72,5 +73,90 @@ func TestIssuesErrorsAndNoRemote(t *testing.T) {
 	a.Update(issuesMsg{view: a.issues, repo: "me/alpha"})
 	if s := screen(a); !strings.Contains(s, "No open issues") {
 		t.Fatalf("expected empty state:\n%s", s)
+	}
+}
+
+func typeText(a *App, s string) {
+	for _, r := range s {
+		a.Update(tea.KeyPressMsg{Code: r, Text: string(r)})
+	}
+}
+
+func TestCreateIssuesBackToBack(t *testing.T) {
+	a := newDetailApp(t, 120, 30)
+	a.openIssues("alpha", []string{"me/alpha"})
+	a.Update(issuesMsg{view: a.issues, repo: "me/alpha", issues: []github.Issue{{Number: 1, Title: "Old one"}}})
+
+	a.Update(key("n"))
+	if a.issues.form == nil || !a.issues.form.open {
+		t.Fatal("n should open the new issue form")
+	}
+	if s := screen(a); !strings.Contains(s, "New issue · me/alpha") || !strings.Contains(s, "enter create") {
+		t.Fatalf("expected the form:\n%s", s)
+	}
+
+	// enter with no title explains instead of sending.
+	a.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	if a.issues.form.sending || !strings.Contains(screen(a), "needs a title") {
+		t.Fatalf("an empty title must not be sent:\n%s", screen(a))
+	}
+
+	typeText(a, "First bug")
+	a.Update(tea.KeyPressMsg{Code: tea.KeyTab})
+	typeText(a, "details")
+	if !a.issues.form.onBody || a.issues.form.body.Value() != "details" {
+		t.Fatalf("tab should move to the description, got %q", a.issues.form.body.Value())
+	}
+	a.Update(tea.KeyPressMsg{Code: 's', Mod: tea.ModCtrl})
+	if !a.issues.form.sending {
+		t.Fatal("ctrl+s should send the issue")
+	}
+	typeText(a, "ignored")
+	if a.issues.form.body.Value() != "details" {
+		t.Fatal("the text must not change while it's being sent")
+	}
+
+	a.Update(issueCreatedMsg{view: a.issues, issue: github.Issue{Number: 2, Title: "First bug"}})
+	f := a.issues.form
+	if !f.open || f.title.Value() != "" || f.body.Value() != "" || f.onBody {
+		t.Fatalf("after creating, the form clears and stays open on the title: %+v", f)
+	}
+	if a.issues.issues[0].Number != 2 {
+		t.Error("the new issue should be added to the top of the list")
+	}
+
+	typeText(a, "Second bug")
+	a.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	a.Update(issueCreatedMsg{view: a.issues, issue: github.Issue{Number: 3, Title: "Second bug"}})
+	if s := screen(a); !strings.Contains(s, "Created #3 Second bug · #2 First bug") {
+		t.Fatalf("the form should list what it created:\n%s", s)
+	}
+
+	// A failure keeps the text so it can be retried.
+	typeText(a, "Third")
+	a.Update(tea.KeyPressMsg{Code: tea.KeyEnter})
+	a.Update(issueCreatedMsg{view: a.issues, err: errors.New("github: 403 Forbidden")})
+	if f.title.Value() != "Third" || !strings.Contains(screen(a), "403 Forbidden") {
+		t.Fatalf("a failed create keeps the draft and shows why:\n%s", screen(a))
+	}
+
+	// esc goes back to the list and keeps the draft; q only closes the list.
+	a.Update(tea.KeyPressMsg{Code: tea.KeyEscape})
+	if a.issues == nil || f.open {
+		t.Fatal("esc should return to the issue list")
+	}
+	a.Update(key("n"))
+	if f.title.Value() != "Third" {
+		t.Error("the draft should survive closing the form")
+	}
+}
+
+func TestNewIssueNeedsLoadedRepo(t *testing.T) {
+	a := newDetailApp(t, 120, 30)
+	a.openIssues("alpha", []string{"me/alpha"})
+	a.Update(issuesMsg{view: a.issues, err: github.ErrNotFound})
+	a.Update(key("n"))
+	if a.issues.form != nil {
+		t.Fatal("no form without a repo to create in")
 	}
 }

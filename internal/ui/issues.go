@@ -49,6 +49,7 @@ type issuesView struct {
 	more    bool
 	cursor  int
 	offset  int
+	form    *issueForm // new issue form; nil until first opened
 }
 
 type issuesMsg struct {
@@ -128,8 +129,12 @@ func (a *App) remoteIssues() tea.Cmd {
 	return a.openIssues(r.FullName(), []string{r.Owner + "/" + r.Name})
 }
 
-func (a *App) issuesKey(key string) tea.Cmd {
+func (a *App) issuesKey(msg tea.KeyPressMsg) tea.Cmd {
 	v := a.issues
+	if v.form != nil && v.form.open {
+		return a.issueFormKey(msg)
+	}
+	key := msg.String()
 	page := max(1, a.popupListHeight())
 	move := func(d int) { v.cursor = max(0, min(len(v.issues)-1, v.cursor+d)) }
 	switch key {
@@ -149,6 +154,8 @@ func (a *App) issuesKey(key string) tea.Cmd {
 		move(len(v.issues))
 	case "r":
 		return a.loadIssues()
+	case "n":
+		return a.openIssueForm()
 	case "enter", "o":
 		if v.cursor < len(v.issues) {
 			is := v.issues[v.cursor]
@@ -182,7 +189,11 @@ func (a *App) renderIssues() string {
 	if repo == "" && len(v.repos) > 0 {
 		repo = v.repos[0]
 	}
-	title := st.boxTitle.Render("Issues") + st.dim.Render(" · ") + st.bold.Render(repo)
+	heading := "Issues"
+	if v.form != nil && v.form.open {
+		heading = "New issue"
+	}
+	title := st.boxTitle.Render(heading) + st.dim.Render(" · ") + st.bold.Render(repo)
 	var count string
 	switch {
 	case v.loading:
@@ -197,6 +208,8 @@ func (a *App) renderIssues() string {
 
 	var body []string
 	switch {
+	case v.form != nil && v.form.open:
+		body = a.renderIssueForm(cw, listH)
 	case v.loading && len(v.issues) == 0:
 		body = []string{a.spin.View() + st.dim.Render(" Loading issues…")}
 	case errors.Is(v.err, github.ErrNoToken):
@@ -215,8 +228,13 @@ func (a *App) renderIssues() string {
 		body = append(body, "")
 	}
 	lines = append(lines, body[:listH]...)
-	lines = append(lines, "", fit(st.key.Render("enter")+st.dim.Render(" open in browser · ")+
-		st.key.Render("r")+st.dim.Render(" refresh · ")+st.key.Render("esc")+st.dim.Render(" close"), cw))
+	hint := st.key.Render("enter") + st.dim.Render(" open in browser · ") +
+		st.key.Render("n") + st.dim.Render(" new issue · ") +
+		st.key.Render("r") + st.dim.Render(" refresh · ") + st.key.Render("esc") + st.dim.Render(" close")
+	if v.form != nil && v.form.open {
+		hint = a.issueFormHint()
+	}
+	lines = append(lines, "", fit(hint, cw))
 	return st.box.Width(bw).Render(strings.Join(lines, "\n"))
 }
 
