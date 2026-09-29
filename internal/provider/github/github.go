@@ -2,10 +2,12 @@
 package github
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -146,13 +148,30 @@ var ErrNotFound = errors.New("github: not found")
 
 // get fetches one API page into v and returns the next page's URL, if any.
 func (g *GitHub) get(ctx context.Context, url string, v any) (next string, err error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	return g.do(ctx, http.MethodGet, url, nil, v)
+}
+
+// do sends a request, with in as its JSON body when not nil, and decodes
+// a successful response into out. It returns the next page's URL, if any.
+func (g *GitHub) do(ctx context.Context, method, url string, in, out any) (next string, err error) {
+	var body io.Reader
+	if in != nil {
+		b, err := json.Marshal(in)
+		if err != nil {
+			return "", err
+		}
+		body = bytes.NewReader(b)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
 		return "", err
 	}
 	req.Header.Set("Authorization", "Bearer "+g.token)
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
+	if in != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
 
 	resp, err := g.client.Do(req)
 	if err != nil {
@@ -162,16 +181,28 @@ func (g *GitHub) get(ctx context.Context, url string, v any) (next string, err e
 	switch {
 	case resp.StatusCode == http.StatusNotFound || resp.StatusCode == http.StatusGone:
 		return "", ErrNotFound
-	case resp.StatusCode != http.StatusOK:
-		return "", fmt.Errorf("github: %s", resp.Status)
+	case resp.StatusCode < 200 || resp.StatusCode > 299:
+		return "", apiError(resp)
 	}
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 		return "", fmt.Errorf("github: decoding response: %w", err)
 	}
 	if m := nextLink.FindStringSubmatch(resp.Header.Get("Link")); m != nil {
 		next = m[1]
 	}
 	return next, nil
+}
+
+// apiError describes a failed request, using GitHub's own message (such as
+// "Resource not accessible by personal access token") when it sends one.
+func apiError(resp *http.Response) error {
+	var e struct {
+		Message string `json:"message"`
+	}
+	if json.NewDecoder(io.LimitReader(resp.Body, 64<<10)).Decode(&e) == nil && e.Message != "" {
+		return fmt.Errorf("github: %s: %s", resp.Status, e.Message)
+	}
+	return fmt.Errorf("github: %s", resp.Status)
 }
 
 func ghOutput(ctx context.Context, args ...string) string {

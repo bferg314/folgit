@@ -362,6 +362,9 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.handleIssues(msg)
 		return a, nil
 
+	case issueCreatedMsg:
+		return a, a.handleIssueCreated(msg)
+
 	case detailMsg:
 		d := msg.details
 		a.detail.cache[msg.path] = &d
@@ -421,7 +424,10 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a, a.handleKey(msg)
 	}
 
-	// Let a focused filter input receive anything else (cursor blink etc).
+	// Let a focused input receive anything else (pastes, cursor blink etc).
+	if a.issues != nil {
+		return a, a.updateIssueForm(msg)
+	}
 	return a, a.updateFilter(msg)
 }
 
@@ -443,7 +449,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return a.cleanupKey(key)
 	}
 	if a.issues != nil {
-		return a.issuesKey(key)
+		return a.issuesKey(msg)
 	}
 	if a.popup != nil {
 		return a.popupKey(key)

@@ -31,7 +31,7 @@ func (a *App) renderHelp() string {
 		row("d", "show / hide the detail pane"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("w", "open the repo's web page"),
-		row("i", "GitHub issues"),
+		row("i", "GitHub issues (n: new issue)"),
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
 		row("* / h", "pin to the top · hide"),

@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"net/url"
 	"time"
 )
@@ -57,4 +58,27 @@ func (g *GitHub) Issues(ctx context.Context, owner, repo string) (issues []Issue
 		issues = append(issues, is)
 	}
 	return issues, next != "", nil
+}
+
+// CreateIssue opens a new issue in owner/repo. body may be empty.
+func (g *GitHub) CreateIssue(ctx context.Context, owner, repo, title, body string) (Issue, error) {
+	u := fmt.Sprintf("%s/repos/%s/%s/issues", g.api, url.PathEscape(owner), url.PathEscape(repo))
+	in := struct {
+		Title string `json:"title"`
+		Body  string `json:"body,omitempty"`
+	}{title, body}
+	var out struct {
+		Number int    `json:"number"`
+		Title  string `json:"title"`
+		User   struct {
+			Login string `json:"login"`
+		} `json:"user"`
+		UpdatedAt time.Time `json:"updated_at"`
+		HTMLURL   string    `json:"html_url"`
+	}
+	if _, err := g.do(ctx, http.MethodPost, u, in, &out); err != nil {
+		return Issue{}, err
+	}
+	return Issue{Number: out.Number, Title: out.Title, Author: out.User.Login,
+		UpdatedAt: out.UpdatedAt, URL: out.HTMLURL}, nil
 }
