@@ -540,6 +540,18 @@ func (a *App) launch(t config.Tool, path string) tea.Cmd {
 	if !config.Available(t.Cmd) {
 		return a.notify(2, "%s: %q not found on PATH", t.Name, t.Cmd)
 	}
+	if a.inZellijTab(t) {
+		cmd := launcher.ZellijTab(t, path)
+		wait := func() tea.Msg {
+			// Blocks until the tool exits, then refreshes the repo like the
+			// in-place path does.
+			if out, err := cmd.CombinedOutput(); err != nil {
+				return toolExitMsg{path: path, name: t.Name, err: launcher.ZellijError(out, err)}
+			}
+			return toolExitMsg{path: path, name: t.Name}
+		}
+		return tea.Batch(wait, a.notify(1, "Opened %s in %s in a new tab", filepath.Base(path), t.Name))
+	}
 	cmd := launcher.Command(t, path)
 	if t.Mode == config.ModeTerminal {
 		return tea.ExecProcess(cmd, func(err error) tea.Msg {
@@ -550,6 +562,12 @@ func (a *App) launch(t config.Tool, path string) tea.Cmd {
 		return a.notify(2, "%s: %v", t.Name, err)
 	}
 	return a.notify(1, "Opened %s in %s", filepath.Base(path), t.Name)
+}
+
+// inZellijTab reports whether tool t opens in a new zellij tab rather than
+// suspending folgit.
+func (a *App) inZellijTab(t config.Tool) bool {
+	return t.Mode == config.ModeTerminal && !t.InPlace && a.cfg.ZellijTabs && launcher.InZellij()
 }
 
 // enabledTools returns the tools switched on in settings.

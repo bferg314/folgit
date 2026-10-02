@@ -26,6 +26,35 @@ func Command(t config.Tool, dir string) *exec.Cmd {
 	return cmd
 }
 
+// InZellij reports whether folgit is running inside a zellij session.
+func InZellij() bool {
+	return os.Getenv("ZELLIJ") != ""
+}
+
+// ZellijTab builds a command that runs tool t in a new zellij tab in dir.
+// It blocks until the tool exits, and the tab closes with it.
+func ZellijTab(t config.Tool, dir string) *exec.Cmd {
+	tool := Command(t, dir)
+	args := []string{"action", "new-tab",
+		"--name", filepath.Base(dir) + " · " + t.Name,
+		"--cwd", dir,
+		"--close-on-exit", "--block-until-exit",
+		// The resolved path, so zellij runs what folgit found on PATH.
+		"--", tool.Path}
+	cmd := exec.Command("zellij", append(args, tool.Args[1:]...)...)
+	cmd.Dir = dir
+	return cmd
+}
+
+// ZellijError turns a failed zellij action's output into an error.
+func ZellijError(out []byte, err error) error {
+	line, _, _ := strings.Cut(strings.TrimSpace(string(out)), "\n")
+	if line = strings.TrimSpace(line); line != "" {
+		return errors.New(line)
+	}
+	return err
+}
+
 // Detach starts cmd without waiting and without tying it to our terminal.
 func Detach(cmd *exec.Cmd) error {
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = nil, nil, nil

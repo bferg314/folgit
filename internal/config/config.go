@@ -31,6 +31,9 @@ type Tool struct {
 	Key     string   `toml:"key"`
 	Mode    string   `toml:"mode"`
 	Enabled bool     `toml:"enabled"`
+	// InPlace keeps a terminal tool in folgit's own terminal even when
+	// ZellijTabs would open it in a new tab.
+	InPlace bool `toml:"in_place,omitempty"`
 	// AutoDisabled marks a tool folgit switched off because its command
 	// wasn't installed. It is switched back on once the command appears.
 	// Toggling a tool by hand clears it, so user choices stick.
@@ -58,8 +61,11 @@ type Config struct {
 	ScanHidden bool   `toml:"scan_hidden"`
 	// Powerline draws the status bar with arrow separators, which need a
 	// Nerd Font or Powerline-patched font.
-	Powerline bool     `toml:"powerline"`
-	Ignore    []string `toml:"ignore"`
+	Powerline bool `toml:"powerline"`
+	// ZellijTabs opens terminal tools in a new zellij tab, instead of
+	// suspending folgit, when folgit runs inside zellij.
+	ZellijTabs bool     `toml:"zellij_tabs"`
+	Ignore     []string `toml:"ignore"`
 	// Pinned repos sort to the top of the Local tab and Hidden repos are
 	// left out of it. Both hold repo paths, with the home directory as ~.
 	Pinned []string `toml:"pinned"`
@@ -212,8 +218,9 @@ func (c *Config) EnableInstalled() []string {
 // Default returns the built-in configuration.
 func Default() *Config {
 	return &Config{
-		Version:  configVersion,
-		MaxDepth: 4,
+		Version:    configVersion,
+		MaxDepth:   4,
+		ZellijTabs: true,
 		Ignore: []string{
 			"node_modules", "vendor", "target", "dist", "build", "out",
 			".venv", "venv", "__pycache__", ".next", ".cache", "bin", "obj",
