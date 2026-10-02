@@ -77,6 +77,7 @@ max_depth = 4
 clone_layout = "{repo}"          # or "{owner}/{repo}", "{host}/{owner}/{repo}"
 pinned = ["~/code/folgit"]       # set with * on the Local tab
 hidden = ["~/code/scratch"]      # set with h
+zellij_tabs = true               # inside zellij, terminal tools open in a new tab
 
 [[tools]]
 name = "Claude Code"
@@ -85,6 +86,7 @@ args = []
 key = "c"
 mode = "terminal"                # suspends folgit until the tool exits
 enabled = true
+# in_place = true                # stay in folgit's terminal even inside zellij
 
 [[tools]]
 name = "VS Code"
@@ -94,6 +96,10 @@ key = "o"
 mode = "detach"                  # starts in the background
 enabled = true
 ```
+
+### Zellij
+
+When folgit runs inside [zellij](https://zellij.dev/), terminal tools (claude, codex, agy, lazygit, ...) open in a new zellij tab named after the repo instead of suspending folgit, so you can keep working and run several at once. The tab closes when the tool exits, and folgit then refreshes that repo. Turn it off with **Zellij tabs** in Settings, or keep a single tool in place with `in_place = true`. It needs a zellij recent enough for `zellij action new-tab --block-until-exit` (0.45 works).
 
 ## Build
 

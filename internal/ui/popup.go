@@ -50,7 +50,10 @@ func (a *App) renderPopup() string {
 			name = st.selName.Render(t.Name)
 		}
 		mode := ""
-		if t.Mode == config.ModeTerminal {
+		switch {
+		case a.inZellijTab(t):
+			mode = st.faintText.Render(" new tab")
+		case t.Mode == config.ModeTerminal:
 			mode = st.faintText.Render(" terminal")
 		}
 		lines = append(lines, marker+st.key.Render(t.Key)+"  "+fit(name, 16)+mode)

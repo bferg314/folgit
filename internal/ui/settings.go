@@ -7,6 +7,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 
 	"github.com/bferg314/folgit/internal/config"
+	"github.com/bferg314/folgit/internal/launcher"
 )
 
 type settingsTab struct {
@@ -28,7 +29,12 @@ type settingItem struct {
 }
 
 func (a *App) settingItems() []settingItem {
-	items := []settingItem{a.defaultDirItem()}
+	zellij := settingItem{section: "General", label: "Zellij tabs",
+		detail: "inside zellij, terminal tools open in a new tab", on: &a.cfg.ZellijTabs}
+	if !launcher.InZellij() {
+		zellij.detail += " · not in zellij now"
+	}
+	items := []settingItem{a.defaultDirItem(), zellij}
 	for i := range a.cfg.Tools {
 		t := &a.cfg.Tools[i]
 		it := settingItem{
