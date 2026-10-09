@@ -36,6 +36,7 @@ func (a *App) renderHelp() string {
 		row("s", "sort: recent · name · dirty"),
 		row("* / h", "pin to the top · hide"),
 		row("H", "show / hide hidden repos"),
+		row("D", "delete the repo's folder (to trash)"),
 		row("r", "rescan"),
 	}
 

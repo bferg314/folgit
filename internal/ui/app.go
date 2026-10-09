@@ -40,6 +40,7 @@ var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
 	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true, "w": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true, "*": true, "h": true, "H": true,
+	"D": true,
 }
 
 // App is the root model.
@@ -75,6 +76,7 @@ type App struct {
 	bulk    *bulkOp
 	issues  *issuesView
 	cleanup *cleanupView
+	remove  *removeView
 	detail  detailState
 }
 
@@ -246,7 +248,8 @@ func refreshStatus(path string) tea.Cmd {
 func (a *App) busy() bool {
 	return a.local.scanning || a.remote.loading || a.local.anyBusy() || len(a.remote.cloning) > 0 ||
 		a.bulk != nil || a.detailLoading() || a.issues != nil && a.issues.loading ||
-		a.cleanup != nil && (a.cleanup.loading || a.cleanup.deleting)
+		a.cleanup != nil && (a.cleanup.loading || a.cleanup.deleting) ||
+		a.remove != nil && (a.remove.loading || a.remove.removing)
 }
 
 func (a *App) startSpinner() tea.Cmd {
@@ -358,6 +361,12 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case cleanupDoneMsg:
 		return a, a.handleCleanupDone(msg)
 
+	case removeCheckMsg:
+		return a, a.handleRemoveCheck(msg)
+
+	case removeDoneMsg:
+		return a, a.handleRemoveDone(msg)
+
 	case issuesMsg:
 		a.handleIssues(msg)
 		return a, nil
@@ -425,6 +434,9 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Let a focused input receive anything else (pastes, cursor blink etc).
+	if a.remove != nil {
+		return a, a.updateRemoveInput(msg)
+	}
 	if a.issues != nil {
 		return a, a.updateIssueForm(msg)
 	}
@@ -444,6 +456,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if a.help {
 		a.help = false
 		return nil
+	}
+	if a.remove != nil {
+		return a.removeKey(msg)
 	}
 	if a.cleanup != nil {
 		return a.cleanupKey(key)
@@ -622,6 +637,8 @@ func (a *App) render() string {
 	switch {
 	case a.help:
 		overlay = a.renderHelp()
+	case a.remove != nil:
+		overlay = a.renderRemove()
 	case a.cleanup != nil:
 		overlay = a.renderCleanup()
 	case a.issues != nil:
