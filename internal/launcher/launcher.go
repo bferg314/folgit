@@ -105,6 +105,15 @@ func Pull(ctx context.Context, dir string) error {
 	return runGit(ctx, dir, "pull", "--ff-only", "--quiet")
 }
 
+// Switch checks out branch. With track, branch is a remote branch
+// ("origin/feature") and a local branch tracking it is created.
+func Switch(ctx context.Context, dir, branch string, track bool) error {
+	if track {
+		return runGit(ctx, dir, "switch", "--quiet", "--track", branch)
+	}
+	return runGit(ctx, dir, "switch", "--quiet", branch)
+}
+
 // Fetch updates every remote of the repo in dir, pruning deleted branches.
 func Fetch(ctx context.Context, dir string) error {
 	return runGit(ctx, dir, "fetch", "--all", "--prune", "--quiet")

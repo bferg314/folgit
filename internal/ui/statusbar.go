@@ -209,6 +209,8 @@ func (a *App) barMode() (string, color.Color) {
 		return "BRANCHES", st.green
 	case a.issues != nil:
 		return "ISSUES", st.green
+	case a.switcher != nil:
+		return "SWITCH", st.green
 	case a.popup != nil:
 		return "OPEN", st.green
 	}

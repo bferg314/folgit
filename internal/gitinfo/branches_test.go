@@ -137,3 +137,44 @@ func TestStaleBranchesWithStaleOriginHead(t *testing.T) {
 		t.Fatalf("got %d branches, base=%q, err=%v", len(got), base, err)
 	}
 }
+
+func TestSwitchTargets(t *testing.T) {
+	work := cleanupFixture(t)
+	ctx := context.Background()
+	for _, args := range [][]string{
+		{"push", "-q", "origin", "main:remote-only"},
+		{"push", "-q", "origin", "main:wip"}, // wip exists locally, so origin/wip is left out
+		{"fetch", "-q"},
+	} {
+		if _, err := Git(ctx, work, args...); err != nil {
+			t.Fatalf("git %v: %v", args, err)
+		}
+	}
+
+	targets, err := SwitchTargets(ctx, work)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, b := range targets {
+		names = append(names, b.Name)
+	}
+	if len(targets) == 0 || targets[0].Name != "current" || !targets[0].Current {
+		t.Fatalf("current branch should come first: %v", names)
+	}
+	last := targets[len(targets)-1]
+	if last.Name != "origin/remote-only" || !last.Remote || last.LocalName() != "remote-only" {
+		t.Fatalf("remote-only branch should come last: %+v", last)
+	}
+	sorted := append([]string(nil), names...)
+	sort.Strings(sorted)
+	want := []string{"current", "develop", "main", "merged-gone", "merged-local", "origin/remote-only", "squashed", "wip"}
+	if len(sorted) != len(want) {
+		t.Fatalf("got %v, want %v", sorted, want)
+	}
+	for i := range want {
+		if sorted[i] != want[i] {
+			t.Fatalf("got %v, want %v", sorted, want)
+		}
+	}
+}

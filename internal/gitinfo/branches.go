@@ -101,3 +101,60 @@ func DeleteBranch(ctx context.Context, dir, name string) error {
 	_, err := Git(ctx, dir, "branch", "-D", name)
 	return err
 }
+
+// SwitchTarget is a branch that can be switched to.
+type SwitchTarget struct {
+	Name     string // "feature", or "origin/feature" for a remote branch
+	Remote   bool   // a remote branch with no local branch yet
+	Current  bool
+	Upstream string
+	Track    string // e.g. "ahead 1, behind 2" or "gone"
+	When     time.Time
+}
+
+// LocalName is the branch switching to t checks out: remote branches get a
+// local branch named after them.
+func (t SwitchTarget) LocalName() string {
+	if t.Remote {
+		return t.Name[strings.Index(t.Name, "/")+1:]
+	}
+	return t.Name
+}
+
+// SwitchTargets lists the current branch, then the other local branches,
+// then remote branches that no local branch has yet, each newest first.
+func SwitchTargets(ctx context.Context, dir string) ([]SwitchTarget, error) {
+	out, err := Git(ctx, dir, "for-each-ref", "--sort=-committerdate",
+		"--format=%(refname)"+sep+"%(refname:short)"+sep+"%(HEAD)"+sep+"%(upstream:short)"+sep+"%(upstream:track,nobracket)"+sep+"%(committerdate:unix)",
+		"refs/heads", "refs/remotes")
+	if err != nil {
+		return nil, err
+	}
+	var current, local, remote []SwitchTarget
+	have := map[string]bool{} // local branch names and the upstreams they track
+	for _, f := range fields(out, 6) {
+		t := SwitchTarget{Name: f[1], Upstream: f[3], Track: f[4], When: unix(f[5])}
+		switch {
+		case strings.HasPrefix(f[0], "refs/heads/"):
+			t.Current = f[2] == "*"
+			have[t.Name], have[t.Upstream] = true, true
+			if t.Current {
+				current = append(current, t)
+			} else {
+				local = append(local, t)
+			}
+		case strings.HasSuffix(f[0], "/HEAD") || !strings.Contains(t.Name, "/"):
+			// origin/HEAD is an alias, not a branch.
+		default:
+			t.Remote, t.Upstream, t.Track = true, "", ""
+			remote = append(remote, t)
+		}
+	}
+	targets := append(current, local...)
+	for _, t := range remote {
+		if !have[t.Name] && !have[t.LocalName()] {
+			targets = append(targets, t)
+		}
+	}
+	return targets, nil
+}

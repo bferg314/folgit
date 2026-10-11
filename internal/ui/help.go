@@ -42,6 +42,18 @@ func (a *App) helpLines() []string {
 			"",
 			note("These keys work while the issue list is open."),
 		}
+	case a.switcher != nil:
+		return []string{
+			title("Switch branch"),
+			row("↑↓ / j k", "move"),
+			row("enter", "switch to the highlighted branch"),
+			row("/", "filter (enter switches to the top)"),
+			row("f", "fetch, to list new remote branches"),
+			row("esc", "close"),
+			"",
+			note("● is the current branch. Remote branches get a"),
+			note("local branch that tracks them when you switch."),
+		}
 	case a.popup != nil:
 		return []string{
 			title("Open in…"),
@@ -112,10 +124,10 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("w", "open the repo's web page"),
 		row("i", "GitHub issues (n: new issue)"),
+		row("S", "switch branch"),
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
-		row("* / h", "pin to the top · hide"),
-		row("H", "show / hide hidden repos"),
+		row("* / h / H", "pin to top · hide · show hidden"),
 		row("r", "rescan"),
 	}
 
