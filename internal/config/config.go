@@ -46,6 +46,8 @@ type GitHub struct {
 	IncludeStarred  bool `toml:"include_starred"`
 	IncludeArchived bool `toml:"include_archived"`
 	IncludeForks    bool `toml:"include_forks"`
+	// OnlyMine shows just the repos the signed-in user owns.
+	OnlyMine bool `toml:"only_mine"`
 	// Protocol is "ssh" or "https". Empty means use `gh config get git_protocol`.
 	Protocol string `toml:"protocol"`
 }

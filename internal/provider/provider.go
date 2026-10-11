@@ -21,6 +21,7 @@ type Repo struct {
 	Private     bool
 	Fork        bool
 	Archived    bool
+	Mine        bool // owned by the signed-in user
 }
 
 // FullName is "owner/name".

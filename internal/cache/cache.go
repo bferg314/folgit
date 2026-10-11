@@ -19,7 +19,9 @@ import (
 )
 
 // version is bumped whenever the file format changes; older files are ignored.
-const version = 1
+//
+//	2: remote repos carry mine
+const version = 2
 
 // File is the cached state for one root.
 type File struct {

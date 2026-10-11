@@ -21,6 +21,7 @@ type settingItem struct {
 	on      *bool
 	warn    string
 	remote  bool         // changing it reloads the remote list
+	filter  bool         // changing it re-filters the remote list
 	tool    *config.Tool // set for tool rows
 
 	// Action rows have no checkbox (on == nil): enter/space runs set, x
@@ -54,6 +55,8 @@ func (a *App) settingItems() []settingItem {
 	}
 	gh := &a.cfg.GitHub
 	items = append(items,
+		settingItem{section: "GitHub", label: "Only my repos", detail: "hide repos owned by others · m on the Remote tab",
+			on: &gh.OnlyMine, filter: true},
 		settingItem{section: "GitHub", label: "Organization repos", on: &gh.IncludeOrgs, remote: true},
 		settingItem{section: "GitHub", label: "Starred repos", on: &gh.IncludeStarred, remote: true},
 		settingItem{section: "GitHub", label: "Forks", on: &gh.IncludeForks, remote: true},
@@ -137,6 +140,9 @@ func (a *App) settingsKey(key string) tea.Cmd {
 		cmds := []tea.Cmd{a.saveConfig()}
 		if it.remote {
 			cmds = append(cmds, a.loadRemote())
+		}
+		if it.filter {
+			a.remote.refresh(a.localKeys())
 		}
 		if it.section == "Scanning" {
 			cmds = append(cmds, a.startScan())
