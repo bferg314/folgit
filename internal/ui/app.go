@@ -40,7 +40,7 @@ var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
 	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true, "w": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true, "*": true, "h": true, "H": true,
-	"D": true,
+	"D": true, "S": true,
 }
 
 // App is the root model.
@@ -59,6 +59,7 @@ type App struct {
 	spin     spinner.Model
 	spinning bool
 	popup    *toolPopup
+	switcher *switchView
 	help     bool
 	// helpOffset is the first help line shown when it's taller than the
 	// terminal.
@@ -252,6 +253,7 @@ func (a *App) busy() bool {
 	return a.local.scanning || a.remote.loading || a.local.anyBusy() || len(a.remote.cloning) > 0 ||
 		a.bulk != nil || a.detailLoading() || a.issues != nil && a.issues.loading ||
 		a.cleanup != nil && (a.cleanup.loading || a.cleanup.deleting) ||
+		a.switcher != nil && (a.switcher.loading || a.switcher.switching) ||
 		a.remove != nil && (a.remove.loading || a.remove.removing)
 }
 
@@ -364,6 +366,13 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case cleanupDoneMsg:
 		return a, a.handleCleanupDone(msg)
 
+	case switchListMsg:
+		a.handleSwitchList(msg)
+		return a, nil
+
+	case switchDoneMsg:
+		return a, a.handleSwitchDone(msg)
+
 	case removeCheckMsg:
 		return a, a.handleRemoveCheck(msg)
 
@@ -443,6 +452,11 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if a.issues != nil {
 		return a, a.updateIssueForm(msg)
 	}
+	if a.switcher != nil && a.switcher.filter.Focused() {
+		var cmd tea.Cmd
+		a.switcher.filter, cmd = a.switcher.filter.Update(msg)
+		return a, cmd
+	}
 	return a, a.updateFilter(msg)
 }
 
@@ -488,6 +502,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	}
 	if a.issues != nil {
 		return a.issuesKey(msg)
+	}
+	if a.switcher != nil {
+		return a.switchKey(msg)
 	}
 	if a.popup != nil {
 		return a.popupKey(key)
@@ -555,6 +572,8 @@ func (a *App) popupHelp() bool {
 		return !a.cleanup.confirm && !a.cleanup.deleting
 	case a.issues != nil:
 		return a.issues.form == nil || !a.issues.form.open
+	case a.switcher != nil:
+		return !a.switcher.filter.Focused()
 	}
 	return a.popup != nil
 }
@@ -678,6 +697,8 @@ func (a *App) render() string {
 		overlay = a.renderCleanup()
 	case a.issues != nil:
 		overlay = a.renderIssues()
+	case a.switcher != nil:
+		overlay = a.renderSwitch()
 	case a.popup != nil:
 		overlay = a.renderPopup()
 	}

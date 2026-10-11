@@ -42,6 +42,18 @@ func (a *App) helpLines() []string {
 			"",
 			note("These keys work while the issue list is open."),
 		}
+	case a.switcher != nil:
+		return []string{
+			title("Switch branch"),
+			row("↑↓ / j k", "move"),
+			row("enter", "switch to the highlighted branch"),
+			row("/", "filter (enter switches to the top)"),
+			row("f", "fetch, to list new remote branches"),
+			row("esc", "close"),
+			"",
+			note("● is the current branch. Remote branches get a"),
+			note("local branch that tracks them when you switch."),
+		}
 	case a.popup != nil:
 		return []string{
 			title("Open in…"),
@@ -91,10 +103,11 @@ func (a *App) helpLines() []string {
 			row("enter / x", "default folder: use current · clear"),
 		)
 	}
-	return append(lines, "",
-		note("Keys for the "+tabNames[a.tab]+" tab. Other tabs have their own."),
-		note("Tools, keys and scan options: ")+st.textS.Render(tildePath(a.cfgPath)),
-	)
+	lines = append(lines, "", note("Keys for the "+tabNames[a.tab]+" tab. Other tabs have their own."))
+	if a.tab == tabSettings {
+		lines = append(lines, note("Tools, keys and scan options: ")+st.textS.Render(tildePath(a.cfgPath)))
+	}
+	return lines
 }
 
 // localHelp is the Local tab's keys, its tools and the status legend. On
@@ -106,12 +119,12 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		title("Local"),
 		row("enter", "open in a tool…"),
 		row("g", "quit and cd into the repo"),
-		row("p / P", "pull this repo · all clean repos"),
-		row("F", "fetch all repos"),
+		row("p / P / F", "pull · pull all clean · fetch all"),
 		row("d", "show / hide the detail pane"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("w", "open the repo's web page"),
 		row("i", "GitHub issues (n: new issue)"),
+		row("S", "switch branch"),
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
 		row("* / h / H", "pin to top · hide · show hidden"),

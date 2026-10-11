@@ -122,3 +122,15 @@ func TestHelpInPopup(t *testing.T) {
 		t.Error("closing help should leave the popup open")
 	}
 }
+
+// The Local help fits a standard 24-line terminal when it's wide enough
+// for two columns, with every default tool enabled.
+func TestLocalHelpFits24Lines(t *testing.T) {
+	a := helpApp(t, 120, 24)
+	for i := range a.cfg.Tools {
+		a.cfg.Tools[i].Enabled = true
+	}
+	if a.helpScrolls() {
+		t.Errorf("Local help has %d lines, more than fit in 24", len(a.helpLines()))
+	}
+}
