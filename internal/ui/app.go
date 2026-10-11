@@ -126,7 +126,7 @@ func New(cfg *config.Config, cfgPath, root string, cached *cache.File, cwdFile s
 		root:    root,
 		st:      newStyles(true),
 		local:   newLocalTab(cfg),
-		remote:  newRemoteTab(),
+		remote:  newRemoteTab(cfg),
 		detail:  detailState{show: true, cache: make(map[string]*gitinfo.Details)},
 		cwdFile: cwdFile,
 	}

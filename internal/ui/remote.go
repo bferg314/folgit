@@ -11,6 +11,7 @@ import (
 	tea "charm.land/bubbletea/v2"
 	"github.com/sahilm/fuzzy"
 
+	"github.com/bferg314/folgit/internal/config"
 	"github.com/bferg314/folgit/internal/launcher"
 	"github.com/bferg314/folgit/internal/provider"
 	"github.com/bferg314/folgit/internal/provider/github"
@@ -24,6 +25,7 @@ type remoteTab struct {
 	view     []provider.Repo
 	matches  map[string][]int
 	missing  int // repos not present locally, before text filtering
+	onlyMine *bool
 	loading  bool
 	err      error
 	cursor   int
@@ -35,8 +37,9 @@ type remoteTab struct {
 	failed   map[string]string
 }
 
-func newRemoteTab() remoteTab {
+func newRemoteTab(cfg *config.Config) remoteTab {
 	return remoteTab{
+		onlyMine: &cfg.GitHub.OnlyMine,
 		filter:   newFilter(),
 		selected: make(map[string]bool),
 		cloning:  make(map[string]bool),
@@ -52,7 +55,8 @@ func (t *remoteTab) current() *provider.Repo {
 	return nil
 }
 
-// refresh shows repos that are not already cloned locally.
+// refresh shows repos that are not already cloned locally, and only the
+// user's own when onlyMine is set.
 func (t *remoteTab) refresh(local map[string]bool) {
 	var keep string
 	if r := t.current(); r != nil {
@@ -61,7 +65,7 @@ func (t *remoteTab) refresh(local map[string]bool) {
 
 	var missing []provider.Repo
 	for _, r := range t.all {
-		if !local[r.Key()] && !t.cloned[r.Key()] {
+		if !local[r.Key()] && !t.cloned[r.Key()] && (r.Mine || !*t.onlyMine) {
 			missing = append(missing, r)
 		}
 	}
@@ -132,6 +136,8 @@ func (a *App) remoteKey(key string) tea.Cmd {
 		return a.remoteIssues()
 	case "R":
 		return a.loadRemote()
+	case "m":
+		return a.toggleOnlyMine()
 	case "enter":
 		var targets []provider.Repo
 		for _, r := range t.view {
@@ -160,6 +166,18 @@ func (a *App) remoteKey(key string) tea.Cmd {
 		return tea.Batch(cmds...)
 	}
 	return nil
+}
+
+// toggleOnlyMine switches between the user's own repos and every repo
+// they can see. The choice is saved, so it holds across sessions.
+func (a *App) toggleOnlyMine() tea.Cmd {
+	a.cfg.GitHub.OnlyMine = !a.cfg.GitHub.OnlyMine
+	a.remote.refresh(a.localKeys())
+	msg := "Showing only your repos · m shows everyone's"
+	if !a.cfg.GitHub.OnlyMine {
+		msg = "Showing every repo you can access"
+	}
+	return tea.Batch(a.saveConfig(), a.notify(1, "%s", msg))
 }
 
 func (a *App) clone(r provider.Repo) tea.Cmd {
@@ -195,6 +213,9 @@ func (a *App) renderRemote(h int) string {
 			msg = st.bad.Render("Couldn't load repositories: ") + st.dim.Render(t.err.Error())
 		case t.filter.Value() != "":
 			msg = st.dim.Render("Nothing matches that filter.")
+		case *t.onlyMine:
+			msg = st.ok.Render("✓ ") + st.dim.Render("Every repository you own is already here. Press ") +
+				st.key.Render("m") + st.dim.Render(" to show everyone's.")
 		default:
 			msg = st.ok.Render("✓ ") + st.dim.Render("Every repository you have access to is already here.")
 		}
@@ -214,7 +235,11 @@ func (a *App) renderRemote(h int) string {
 		nameW = max(10, a.w-4-langW-starW-agoW-6)
 	}
 
-	head := "    " + fit(st.colHead.Render("REPOSITORY"), nameW) + "  "
+	title := "REPOSITORY"
+	if *t.onlyMine {
+		title = "YOUR REPOS"
+	}
+	head := "    " + fit(st.colHead.Render(title), nameW) + "  "
 	if showDesc {
 		head += fit(st.colHead.Render("DESCRIPTION"), descW) + "  "
 	}

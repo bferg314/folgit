@@ -66,6 +66,12 @@ func (g *GitHub) ListRepos(ctx context.Context) ([]provider.Repo, error) {
 	if g.opt.IncludeOrgs {
 		affiliation += ",organization_member"
 	}
+	var me struct {
+		Login string `json:"login"`
+	}
+	if _, err := g.get(ctx, g.api+"/user", &me); err != nil {
+		return nil, err
+	}
 	all, err := g.list(ctx, g.api+"/user/repos?per_page=100&sort=pushed&affiliation="+affiliation)
 	if err != nil {
 		return nil, err
@@ -102,6 +108,7 @@ func (g *GitHub) ListRepos(ctx context.Context) ([]provider.Repo, error) {
 			Private:     r.Private,
 			Fork:        r.Fork,
 			Archived:    r.Archived,
+			Mine:        strings.EqualFold(r.Owner.Login, me.Login),
 		})
 	}
 	return repos, nil

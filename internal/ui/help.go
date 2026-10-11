@@ -59,6 +59,7 @@ func (a *App) renderHelp() string {
 		row("enter", "clone selected (or current)"),
 		row("w", "open the repo's web page"),
 		row("i", "GitHub issues"),
+		row("m", "only my repos · everyone's"),
 		row("R", "reload from GitHub"),
 		"",
 		title("Settings"),

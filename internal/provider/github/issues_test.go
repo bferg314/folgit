@@ -90,3 +90,26 @@ func TestCreateIssueError(t *testing.T) {
 		t.Fatalf("err = %v, want GitHub's message", err)
 	}
 }
+
+func TestListReposMarksOwnRepos(t *testing.T) {
+	g := testClient(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user":
+			w.Write([]byte(`{"login": "Ada"}`))
+		case "/user/repos":
+			w.Write([]byte(`[
+				{"name": "mine", "full_name": "ada/mine", "owner": {"login": "ada"}},
+				{"name": "theirs", "full_name": "org/theirs", "owner": {"login": "org"}}
+			]`))
+		default:
+			t.Errorf("unexpected request %s", r.URL)
+		}
+	})
+	repos, err := g.ListRepos(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(repos) != 2 || !repos[0].Mine || repos[1].Mine {
+		t.Errorf("unexpected repos %+v", repos)
+	}
+}
