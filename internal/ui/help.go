@@ -103,10 +103,11 @@ func (a *App) helpLines() []string {
 			row("enter / x", "default folder: use current · clear"),
 		)
 	}
-	return append(lines, "",
-		note("Keys for the "+tabNames[a.tab]+" tab. Other tabs have their own."),
-		note("Tools, keys and scan options: ")+st.textS.Render(tildePath(a.cfgPath)),
-	)
+	lines = append(lines, "", note("Keys for the "+tabNames[a.tab]+" tab. Other tabs have their own."))
+	if a.tab == tabSettings {
+		lines = append(lines, note("Tools, keys and scan options: ")+st.textS.Render(tildePath(a.cfgPath)))
+	}
+	return lines
 }
 
 // localHelp is the Local tab's keys, its tools and the status legend. On
@@ -118,8 +119,7 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		title("Local"),
 		row("enter", "open in a tool…"),
 		row("g", "quit and cd into the repo"),
-		row("p / P", "pull this repo · all clean repos"),
-		row("F", "fetch all repos"),
+		row("p / P / F", "pull · pull all clean · fetch all"),
 		row("d", "show / hide the detail pane"),
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("w", "open the repo's web page"),
@@ -128,6 +128,7 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
 		row("* / h / H", "pin to top · hide · show hidden"),
+		row("D", "delete the repo's folder (to trash)"),
 		row("r", "rescan"),
 	}
 
