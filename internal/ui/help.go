@@ -114,8 +114,8 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		row("i", "GitHub issues (n: new issue)"),
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
-		row("* / h", "pin to the top · hide"),
-		row("H", "show / hide hidden repos"),
+		row("* / h / H", "pin to top · hide · show hidden"),
+		row("D", "delete the repo's folder (to trash)"),
 		row("r", "rescan"),
 	}
 
