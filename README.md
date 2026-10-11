@@ -33,7 +33,7 @@ For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh 
 - **Remote**: your GitHub repos that aren't on this machine. `space` selects, `a` selects all, `enter` clones into the scanned directory, and `w` opens the repo on GitHub. `m` switches between repos you own and every repo you can access (including org and collaborator repos). folgit remembers the choice, and it's also in Settings.
 - **Settings**: turn tools and GitHub listing options on and off.
 
-Press `?` for every key, including your tools' keys, and what the status symbols mean.
+Press `?` for the keys that work where you are: the current tab's keys plus the ones that work everywhere, or the open popup's keys. On the Local tab it also lists your tools' keys and what the status symbols mean. If it doesn't fit the terminal, `j`/`k` scroll it.
 
 ## Status bar
 

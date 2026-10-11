@@ -59,7 +59,10 @@ type App struct {
 	spinning bool
 	popup    *toolPopup
 	help     bool
-	toast    toast
+	// helpOffset is the first help line shown when it's taller than the
+	// terminal.
+	helpOffset int
+	toast      toast
 
 	gen    int
 	cancel context.CancelFunc
@@ -442,7 +445,27 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return tea.Quit
 	}
 	if a.help {
+		if a.helpScrolls() {
+			switch key {
+			case "up", "k":
+				a.helpOffset--
+				return nil
+			case "down", "j":
+				a.helpOffset++
+				return nil
+			case "pgup":
+				a.helpOffset -= a.helpRoom() - 1
+				return nil
+			case "pgdown", "space":
+				a.helpOffset += a.helpRoom() - 1
+				return nil
+			}
+		}
 		a.help = false
+		return nil
+	}
+	if key == "?" && a.popupHelp() {
+		a.help, a.helpOffset = true, 0
 		return nil
 	}
 	if a.cleanup != nil {
@@ -474,7 +497,7 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	case "q":
 		return tea.Quit
 	case "?":
-		a.help = true
+		a.help, a.helpOffset = true, 0
 		return nil
 	case "tab", "right":
 		return a.setTab((a.tab + 1) % len(tabNames))
@@ -507,6 +530,18 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 		return a.settingsKey(key)
 	}
 	return nil
+}
+
+// popupHelp reports whether "?" opens help for the open popup. It doesn't
+// while an issue is being typed or a delete is waiting for y.
+func (a *App) popupHelp() bool {
+	switch {
+	case a.cleanup != nil:
+		return !a.cleanup.confirm && !a.cleanup.deleting
+	case a.issues != nil:
+		return a.issues.form == nil || !a.issues.form.open
+	}
+	return a.popup != nil
 }
 
 // activeFilter is the filter input of the current tab, if it has one.
