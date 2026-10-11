@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -97,9 +98,15 @@ func TestCheckRemovalBlocks(t *testing.T) {
 	root, work, git := removalFixture(t)
 	ctx := context.Background()
 
+	// Windows only lets admins (or Developer Mode) make symlinks; without
+	// one, that case is skipped and the rest still run.
 	link := filepath.Join(root, "link")
 	if err := os.Symlink(work, link); err != nil {
-		t.Fatal(err)
+		if runtime.GOOS != "windows" {
+			t.Fatal(err)
+		}
+		t.Logf("skipping the symlink case: %v", err)
+		link = ""
 	}
 	wt := filepath.Join(root, "wt")
 	git(work, "worktree", "add", "-q", wt)
@@ -113,7 +120,10 @@ func TestCheckRemovalBlocks(t *testing.T) {
 		"worktree":    {root, wt, "linked worktree"},
 		"has a wt":    {root, work, "linked worktree(s) depend on it"},
 		"not a repo":  {root, filepath.Join(root, "origin.git"), "no .git"},
-		"nonexistent": {root, filepath.Join(root, "gone"), "no such file"},
+		"nonexistent": {root, filepath.Join(root, "gone"), "no such folder"},
+	}
+	if link == "" {
+		delete(cases, "symlink")
 	}
 	for name, c := range cases {
 		r := CheckRemoval(ctx, c.root, c.dir)

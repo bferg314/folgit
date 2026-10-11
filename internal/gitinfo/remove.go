@@ -2,6 +2,7 @@ package gitinfo
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -121,6 +122,9 @@ func blocked(ctx context.Context, root, dir string) string {
 
 	fi, err := os.Lstat(dir)
 	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		// The OS's own message is long and, on Windows, cryptic.
+		return "there's no such folder"
 	case err != nil:
 		return err.Error()
 	case fi.Mode()&fs.ModeSymlink != 0:
