@@ -3,6 +3,7 @@ package ui
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -35,8 +36,14 @@ func TestRemoveMovesRepoToTrash(t *testing.T) {
 	if v == nil || v.loading || v.check.Blocked != "" {
 		t.Fatalf("popup should be ready: %+v", v)
 	}
+	// Windows has no trash folgit can use, so the folder is deleted outright.
+	noTrash := runtime.GOOS == "windows"
+	trashNote := "goes to the trash"
+	if noTrash {
+		trashNote = "deleted permanently"
+	}
 	s := screen(a)
-	for _, want := range []string{"Delete folder", "No remotes", "goes to the trash", "Type doomed to confirm"} {
+	for _, want := range []string{"Delete folder", "No remotes", trashNote, "Type doomed to confirm"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("popup missing %q:\n%s", want, s)
 		}
@@ -62,13 +69,17 @@ func TestRemoveMovesRepoToTrash(t *testing.T) {
 	if _, err := os.Stat(repo); !os.IsNotExist(err) {
 		t.Fatalf("repo should be gone: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(tmp, "data", "Trash", "files", "doomed", ".git")); err != nil {
+	if _, err := os.Stat(filepath.Join(tmp, "data", "Trash", "files", "doomed", ".git")); err != nil && !noTrash {
 		t.Fatalf("repo should be in the trash: %v", err)
 	}
 	if a.local.rows[repo] != nil || len(a.cfg.Pinned) != 0 {
 		t.Fatalf("row and pin should be dropped: rows=%v pinned=%v", a.local.rows, a.cfg.Pinned)
 	}
-	if !strings.Contains(a.toast.text, "Moved doomed to the trash") {
+	toast := "Moved doomed to the trash"
+	if noTrash {
+		toast = "Deleted doomed"
+	}
+	if !strings.Contains(a.toast.text, toast) {
 		t.Fatalf("toast = %q", a.toast.text)
 	}
 }
