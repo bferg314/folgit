@@ -52,3 +52,41 @@ func TestZellijError(t *testing.T) {
 		t.Errorf("got %q", got)
 	}
 }
+
+func TestFindHerdrWorkspace(t *testing.T) {
+	list := []byte(`{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[` +
+		`{"label":"ninja","workspace_id":"w4"},{"label":"folgit","workspace_id":"w7"}]}}`)
+	if got := findHerdrWorkspace(list, "folgit"); got != "w7" {
+		t.Errorf("got %q, want w7", got)
+	}
+	if got := findHerdrWorkspace(list, "other"); got != "" {
+		t.Errorf("got %q, want none", got)
+	}
+	if got := findHerdrWorkspace([]byte("not json"), "folgit"); got != "" {
+		t.Errorf("got %q from bad output, want none", got)
+	}
+}
+
+func TestHerdrCommandLine(t *testing.T) {
+	bare := config.Tool{Cmd: "claude"}
+	withPath := config.Tool{Cmd: "code", Args: []string{"{path}"}}
+	cases := []struct {
+		tool       config.Tool
+		dir, shell string
+		want       string
+	}{
+		{bare, `C:\code\x`, "pwsh", "claude"},
+		{bare, "/code/x", "bash", "claude"},
+		{withPath, `C:\code\x`, "pwsh", `code C:\code\x`},
+		{withPath, `C:\My Code\it's`, "pwsh", `code 'C:\My Code\it''s'`},
+		{withPath, `C:\My Code`, "cmd", `code "C:\My Code"`},
+		{withPath, "/code/it's here", "zsh", `code '/code/it'\''s here'`},
+		{withPath, `C:\code\x`, "bash", `code 'C:\code\x'`},
+		{config.Tool{Cmd: "my tool"}, "/x", "pwsh", "& 'my tool'"},
+	}
+	for _, c := range cases {
+		if got := herdrCommandLine(c.tool, c.dir, c.shell); got != c.want {
+			t.Errorf("herdrCommandLine(%q, %q, %q) = %q, want %q", c.tool.Cmd, c.dir, c.shell, got, c.want)
+		}
+	}
+}

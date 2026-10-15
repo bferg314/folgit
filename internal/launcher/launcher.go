@@ -2,7 +2,9 @@
 package launcher
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -53,6 +55,168 @@ func ZellijError(out []byte, err error) error {
 		return errors.New(line)
 	}
 	return err
+}
+
+// InHerdr reports whether folgit is running inside a herdr pane.
+func InHerdr() bool {
+	return os.Getenv("HERDR_ENV") == "1"
+}
+
+// HerdrWorkspace starts tool t in a herdr workspace for dir, labelled after
+// the repo. If one is already open it is focused and the tool gets a new tab
+// there; otherwise the workspace is created. The tool is typed into the
+// pane's shell and keeps running there, so unlike ZellijTab nothing waits
+// for it to exit. It reports whether the workspace already existed.
+func HerdrWorkspace(t config.Tool, dir string) (existing bool, err error) {
+	label := filepath.Base(dir)
+	list, err := herdr("workspace", "list")
+	if err != nil {
+		return false, err
+	}
+	var pane struct {
+		Result struct {
+			RootPane struct {
+				PaneID string `json:"pane_id"`
+			} `json:"root_pane"`
+		} `json:"result"`
+	}
+	var out []byte
+	if ws := findHerdrWorkspace(list, label); ws != "" {
+		existing = true
+		if _, err := herdr("workspace", "focus", ws); err != nil {
+			return true, err
+		}
+		out, err = herdr("tab", "create", "--workspace", ws, "--cwd", dir, "--label", t.Name, "--focus")
+	} else {
+		out, err = herdr("workspace", "create", "--cwd", dir, "--label", label, "--focus")
+	}
+	if err != nil {
+		return existing, err
+	}
+	if err := json.Unmarshal(out, &pane); err != nil || pane.Result.RootPane.PaneID == "" {
+		return existing, fmt.Errorf("unexpected herdr output: %s", strings.TrimSpace(string(out)))
+	}
+	id := pane.Result.RootPane.PaneID
+	line := herdrCommandLine(t, dir, herdrShell(id))
+	_, err = herdr("pane", "run", id, line)
+	return existing, err
+}
+
+// herdr runs a herdr CLI command and returns its JSON output. Failures are
+// reported by herdr as JSON on stderr, which becomes the error.
+func herdr(args ...string) ([]byte, error) {
+	var stderr bytes.Buffer
+	cmd := exec.Command("herdr", args...)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		var resp struct {
+			Error struct{ Message string } `json:"error"`
+		}
+		if json.Unmarshal(stderr.Bytes(), &resp) == nil && resp.Error.Message != "" {
+			return nil, errors.New(resp.Error.Message)
+		}
+		return nil, ZellijError(stderr.Bytes(), err)
+	}
+	return out, nil
+}
+
+// findHerdrWorkspace returns the ID of the workspace labelled label in the
+// output of `herdr workspace list`, or "".
+func findHerdrWorkspace(list []byte, label string) string {
+	var resp struct {
+		Result struct {
+			Workspaces []struct {
+				ID    string `json:"workspace_id"`
+				Label string `json:"label"`
+			} `json:"workspaces"`
+		} `json:"result"`
+	}
+	if json.Unmarshal(list, &resp) != nil {
+		return ""
+	}
+	for _, w := range resp.Result.Workspaces {
+		if w.Label == label {
+			return w.ID
+		}
+	}
+	return ""
+}
+
+// herdrShell names the shell running in pane (e.g. "pwsh", "bash"), or ""
+// if herdr can't say.
+func herdrShell(pane string) string {
+	out, err := herdr("pane", "process-info", "--pane", pane)
+	if err != nil {
+		return ""
+	}
+	var resp struct {
+		Result struct {
+			ProcessInfo struct {
+				Processes []struct{ Name string } `json:"foreground_processes"`
+			} `json:"process_info"`
+		} `json:"result"`
+	}
+	if json.Unmarshal(out, &resp) != nil || len(resp.Result.ProcessInfo.Processes) == 0 {
+		return ""
+	}
+	name := strings.ToLower(resp.Result.ProcessInfo.Processes[0].Name)
+	return strings.TrimSuffix(name, ".exe")
+}
+
+// herdrCommandLine is tool t in dir as a command line for shell. The bare
+// command name is used, as the shell finds it on PATH just as folgit did.
+// An unknown shell gets the platform's usual one: PowerShell on Windows,
+// a POSIX shell elsewhere.
+func herdrCommandLine(t config.Tool, dir, shell string) string {
+	if shell == "" {
+		shell = "sh"
+		if runtime.GOOS == "windows" {
+			shell = "pwsh"
+		}
+	}
+	words := []string{t.Cmd}
+	for _, a := range t.Args {
+		words = append(words, strings.ReplaceAll(a, "{path}", dir))
+	}
+	for i, w := range words {
+		words[i] = shellQuote(shell, w)
+	}
+	line := strings.Join(words, " ")
+	// PowerShell treats a quoted first word as a string, not a command.
+	if (shell == "pwsh" || shell == "powershell") && strings.HasPrefix(line, "'") {
+		line = "& " + line
+	}
+	return line
+}
+
+// shellQuote quotes w for shell when it has anything beyond plain path and
+// word characters.
+func shellQuote(shell, w string) string {
+	switch shell {
+	case "pwsh", "powershell":
+		if w != "" && !strings.ContainsFunc(w, notIn(`-_./\:=+,@%`)) {
+			return w
+		}
+		return "'" + strings.ReplaceAll(w, "'", "''") + "'"
+	case "cmd":
+		if w != "" && !strings.ContainsFunc(w, notIn(`-_./\:=+,@`)) {
+			return w
+		}
+		return `"` + w + `"`
+	default:
+		if w != "" && !strings.ContainsFunc(w, notIn(`-_./:=+,@%`)) {
+			return w
+		}
+		return "'" + strings.ReplaceAll(w, "'", `'\''`) + "'"
+	}
+}
+
+// notIn matches runes that are neither letters, digits nor in extra.
+func notIn(extra string) func(rune) bool {
+	return func(r rune) bool {
+		return !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune(extra, r))
+	}
 }
 
 // Detach starts cmd without waiting and without tying it to our terminal.

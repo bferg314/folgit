@@ -35,7 +35,12 @@ func (a *App) settingItems() []settingItem {
 	if !launcher.InZellij() {
 		zellij.detail += " · not in zellij now"
 	}
-	items := []settingItem{a.defaultDirItem(), zellij}
+	herdr := settingItem{section: "General", label: "Herdr workspaces",
+		detail: "inside herdr, terminal tools open in the repo's workspace", on: &a.cfg.HerdrWorkspaces}
+	if !launcher.InHerdr() {
+		herdr.detail += " · not in herdr now"
+	}
+	items := []settingItem{a.defaultDirItem(), zellij, herdr}
 	for i := range a.cfg.Tools {
 		t := &a.cfg.Tools[i]
 		it := settingItem{
