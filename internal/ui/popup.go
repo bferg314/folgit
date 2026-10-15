@@ -51,6 +51,8 @@ func (a *App) renderPopup() string {
 		}
 		mode := ""
 		switch {
+		case a.inHerdrWorkspace(t):
+			mode = st.faintText.Render(" workspace")
 		case a.inZellijTab(t):
 			mode = st.faintText.Render(" new tab")
 		case t.Mode == config.ModeTerminal:

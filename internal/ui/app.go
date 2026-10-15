@@ -118,6 +118,11 @@ type (
 		path, name string
 		err        error
 	}
+	herdrMsg struct {
+		path, name string
+		existing   bool
+		err        error
+	}
 	toastExpireMsg struct{ id int }
 )
 
@@ -435,6 +440,17 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, tea.Batch(cmds...)
 
+	case herdrMsg:
+		repo := filepath.Base(msg.path)
+		switch {
+		case msg.err != nil:
+			return a, a.notify(2, "%s: herdr: %v", msg.name, msg.err)
+		case msg.existing:
+			return a, a.notify(1, "Opened %s in a new tab of the %s workspace", msg.name, repo)
+		default:
+			return a, a.notify(1, "Opened %s in a new %s workspace", msg.name, repo)
+		}
+
 	case toastExpireMsg:
 		if msg.id == a.toast.id {
 			a.toast.text = ""
@@ -609,6 +625,12 @@ func (a *App) launch(t config.Tool, path string) tea.Cmd {
 	if !config.Available(t.Cmd) {
 		return a.notify(2, "%s: %q not found on PATH", t.Name, t.Cmd)
 	}
+	if a.inHerdrWorkspace(t) {
+		return func() tea.Msg {
+			existing, err := launcher.HerdrWorkspace(t, path)
+			return herdrMsg{path: path, name: t.Name, existing: existing, err: err}
+		}
+	}
 	if a.inZellijTab(t) {
 		cmd := launcher.ZellijTab(t, path)
 		wait := func() tea.Msg {
@@ -637,6 +659,12 @@ func (a *App) launch(t config.Tool, path string) tea.Cmd {
 // suspending folgit.
 func (a *App) inZellijTab(t config.Tool) bool {
 	return t.Mode == config.ModeTerminal && !t.InPlace && a.cfg.ZellijTabs && launcher.InZellij()
+}
+
+// inHerdrWorkspace reports whether tool t opens in the repo's herdr
+// workspace rather than suspending folgit.
+func (a *App) inHerdrWorkspace(t config.Tool) bool {
+	return t.Mode == config.ModeTerminal && !t.InPlace && a.cfg.HerdrWorkspaces && launcher.InHerdr()
 }
 
 // enabledTools returns the tools switched on in settings.
