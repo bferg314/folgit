@@ -40,7 +40,7 @@ var reservedKeys = map[string]bool{
 	"q": true, "?": true, "/": true, "r": true, "R": true, "p": true, "s": true, "g": true,
 	"P": true, "F": true, "i": true, "d": true, "J": true, "K": true, "b": true, "B": true, "w": true,
 	"j": true, "k": true, "1": true, "2": true, "3": true, "*": true, "h": true, "H": true,
-	"D": true, "S": true,
+	"D": true, "S": true, "C": true,
 }
 
 // App is the root model.
@@ -81,7 +81,12 @@ type App struct {
 	issues  *issuesView
 	cleanup *cleanupView
 	remove  *removeView
+	checks  *checksView
 	detail  detailState
+
+	// protocol is the clone protocol, "ssh" or "https", and protocolFrom
+	// where it came from (github.FromConfig etc). Empty until resolved.
+	protocol, protocolFrom string
 }
 
 type toast struct {
@@ -180,7 +185,7 @@ func (a *App) saveCache() tea.Cmd {
 }
 
 func (a *App) Init() tea.Cmd {
-	cmds := []tea.Cmd{tea.RequestBackgroundColor, a.startScan(), a.loadRemote()}
+	cmds := []tea.Cmd{tea.RequestBackgroundColor, a.startScan(), a.loadRemote(), a.resolveProtocol()}
 	if a.startupNotice != "" {
 		cmds = append(cmds, a.notify(2, "%s", a.startupNotice))
 	}
@@ -259,7 +264,8 @@ func (a *App) busy() bool {
 		a.bulk != nil || a.detailLoading() || a.issues != nil && a.issues.loading ||
 		a.cleanup != nil && (a.cleanup.loading || a.cleanup.deleting) ||
 		a.switcher != nil && (a.switcher.loading || a.switcher.switching) ||
-		a.remove != nil && (a.remove.loading || a.remove.removing)
+		a.remove != nil && (a.remove.loading || a.remove.removing) ||
+		a.checks != nil && (a.checks.fixing || a.detail.cache[a.checks.path] == nil)
 }
 
 func (a *App) startSpinner() tea.Cmd {
@@ -383,6 +389,13 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case removeDoneMsg:
 		return a, a.handleRemoveDone(msg)
+
+	case fixDoneMsg:
+		return a, a.handleFixDone(msg)
+
+	case protocolMsg:
+		a.protocol, a.protocolFrom = msg.protocol, msg.from
+		return a, nil
 
 	case issuesMsg:
 		a.handleIssues(msg)
@@ -522,6 +535,9 @@ func (a *App) handleKey(msg tea.KeyPressMsg) tea.Cmd {
 	if a.switcher != nil {
 		return a.switchKey(msg)
 	}
+	if a.checks != nil {
+		return a.checksKey(key)
+	}
 	if a.popup != nil {
 		return a.popupKey(key)
 	}
@@ -590,6 +606,8 @@ func (a *App) popupHelp() bool {
 		return a.issues.form == nil || !a.issues.form.open
 	case a.switcher != nil:
 		return !a.switcher.filter.Focused()
+	case a.checks != nil:
+		return !a.checks.fixing
 	}
 	return a.popup != nil
 }
@@ -727,6 +745,8 @@ func (a *App) render() string {
 		overlay = a.renderIssues()
 	case a.switcher != nil:
 		overlay = a.renderSwitch()
+	case a.checks != nil:
+		overlay = a.renderChecks()
 	case a.popup != nil:
 		overlay = a.renderPopup()
 	}

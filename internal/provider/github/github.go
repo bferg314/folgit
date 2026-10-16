@@ -41,13 +41,7 @@ func New(ctx context.Context, opt config.GitHub) (*GitHub, error) {
 	if token == "" {
 		return nil, ErrNoToken
 	}
-	protocol := opt.Protocol
-	if protocol == "" {
-		protocol = ghOutput(ctx, "config", "get", "git_protocol", "-h", "github.com")
-	}
-	if protocol != "ssh" {
-		protocol = "https"
-	}
+	protocol, _ := ResolveProtocol(ctx, opt.Protocol)
 	return &GitHub{
 		api:      "https://api.github.com",
 		token:    token,
@@ -55,6 +49,27 @@ func New(ctx context.Context, opt config.GitHub) (*GitHub, error) {
 		opt:      opt,
 		client:   &http.Client{Timeout: 30 * time.Second},
 	}, nil
+}
+
+// Where the clone protocol came from.
+const (
+	FromConfig  = "config"  // github.protocol in folgit's config
+	FromGh      = "gh"      // gh's git_protocol
+	FromDefault = "default" // neither is set
+)
+
+// ResolveProtocol picks the clone protocol, "ssh" or "https": configured
+// (github.protocol) if set, else gh's git_protocol, else https.
+func ResolveProtocol(ctx context.Context, configured string) (protocol, source string) {
+	switch configured {
+	case "ssh", "https":
+		return configured, FromConfig
+	}
+	switch p := ghOutput(ctx, "config", "get", "git_protocol", "-h", "github.com"); p {
+	case "ssh", "https":
+		return p, FromGh
+	}
+	return "https", FromDefault
 }
 
 func (g *GitHub) Name() string { return "GitHub" }

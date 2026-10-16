@@ -18,6 +18,11 @@ type Details struct {
 	Branches []Branch
 	Remotes  []Remote
 	Readme   []string // first lines of the README, if any
+
+	// HTTPS lists remotes with HTTPS GitHub URLs that could be SSH.
+	HTTPS []HTTPSRemote
+	// LineEndings is set when `git ls-files --eol` worked.
+	LineEndings *LineEndings
 }
 
 type Commit struct {
@@ -41,8 +46,8 @@ type Remote struct {
 
 const sep = "\x1f"
 
-// GetDetails loads commits, branches, remotes and a README preview. Parts
-// that fail (e.g. no commits yet) are simply left empty.
+// GetDetails loads commits, branches, remotes, repo checks and a README
+// preview. Parts that fail (e.g. no commits yet) are simply left empty.
 func GetDetails(ctx context.Context, dir string, commits, branches, readmeLines int) Details {
 	var d Details
 
@@ -67,6 +72,15 @@ func GetDetails(ctx context.Context, dir string, commits, branches, readmeLines 
 				d.Remotes = append(d.Remotes, Remote{Name: f[0], URL: f[1]})
 			}
 		}
+	}
+
+	for _, r := range d.Remotes {
+		if ssh, ok := SSHURL(r.URL); ok {
+			d.HTTPS = append(d.HTTPS, HTTPSRemote{Name: r.Name, URL: r.URL, SSHURL: ssh})
+		}
+	}
+	if l, err := CheckLineEndings(ctx, dir); err == nil {
+		d.LineEndings = &l
 	}
 
 	d.Readme = readme(dir, readmeLines)

@@ -225,6 +225,7 @@ func (a *App) renderDetail(w, h int, border bool) string {
 			body = append(body, "")
 			add(a.spin.View() + st.dim.Render(" loading…"))
 		} else {
+			a.appendChecks(r, add, section)
 			a.appendDetails(d, cw, add, section)
 		}
 
