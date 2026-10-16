@@ -8,6 +8,7 @@ import (
 
 	"github.com/bferg314/folgit/internal/config"
 	"github.com/bferg314/folgit/internal/launcher"
+	"github.com/bferg314/folgit/internal/provider/github"
 )
 
 type settingsTab struct {
@@ -66,6 +67,7 @@ func (a *App) settingItems() []settingItem {
 		settingItem{section: "GitHub", label: "Starred repos", on: &gh.IncludeStarred, remote: true},
 		settingItem{section: "GitHub", label: "Forks", on: &gh.IncludeForks, remote: true},
 		settingItem{section: "GitHub", label: "Archived repos", on: &gh.IncludeArchived, remote: true},
+		a.protocolItem(),
 		settingItem{section: "Scanning", label: "Scan hidden directories", on: &a.cfg.ScanHidden},
 		settingItem{section: "Appearance", label: "Powerline status bar", detail: "arrow separators; needs a Nerd Font", on: &a.cfg.Powerline},
 	)
@@ -100,6 +102,46 @@ func (a *App) defaultDirItem() settingItem {
 		}
 		a.cfg.DefaultDir = ""
 		return tea.Batch(a.saveConfig(), a.notify(1, "Default folder cleared: folgit opens where you launch it"))
+	}
+	return it
+}
+
+// protocolItem shows the clone protocol and where it comes from. enter
+// cycles through following gh, ssh and https; x goes back to following gh.
+func (a *App) protocolItem() settingItem {
+	it := settingItem{section: "GitHub", label: "Clone protocol"}
+	switch a.protocolFrom {
+	case "":
+		it.detail = "checking…"
+	case github.FromConfig:
+		it.detail = a.protocol + " · set here · enter: change · x: follow gh"
+	case github.FromGh:
+		it.detail = a.protocol + " · from gh's git_protocol · enter: change"
+	default:
+		it.detail = a.protocol + " · gh has no git_protocol set · enter: change"
+	}
+	if a.protocol == "https" {
+		it.warn = "HTTPS remotes aren't flagged"
+	}
+	change := func(p string) tea.Cmd {
+		a.cfg.GitHub.Protocol = p
+		a.protocol, a.protocolFrom = "", ""
+		note := "Clones use " + p
+		if p == "" {
+			note = "Clones follow gh's git_protocol"
+		}
+		// The remote list holds clone URLs, so it's fetched again.
+		return tea.Batch(a.saveConfig(), a.resolveProtocol(), a.loadRemote(), a.notify(1, "%s", note))
+	}
+	it.set = func() tea.Cmd {
+		next := map[string]string{"": "ssh", "ssh": "https", "https": ""}
+		return change(next[a.cfg.GitHub.Protocol])
+	}
+	it.clear = func() tea.Cmd {
+		if a.cfg.GitHub.Protocol == "" {
+			return nil
+		}
+		return change("")
 	}
 	return it
 }

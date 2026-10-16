@@ -239,6 +239,8 @@ func (a *App) localKey(key string) tea.Cmd {
 		return a.openCleanup(true)
 	case "S":
 		return a.openSwitch()
+	case "C":
+		return a.openChecks()
 	case "D":
 		return a.openRemove()
 	case "w":
@@ -386,7 +388,7 @@ func (a *App) renderLocal(w, h int) string {
 			statusW = max(statusW, 2+len(r.busy))
 		case r.status != nil && r.status.Err == nil:
 			branchW = max(branchW, utf8.RuneCountInString(branchLabel(r.status)))
-			statusW = max(statusW, lipgloss.Width(st.statusCell(r.status)))
+			statusW = max(statusW, lipgloss.Width(a.statusCell(r)))
 		}
 	}
 	statusW = min(statusW, 16)
@@ -449,7 +451,7 @@ func (a *App) renderLocal(w, h int) string {
 			} else {
 				branch = st.branch.Render(branchLabel(r.status))
 			}
-			status = st.statusCell(r.status)
+			status = a.statusCell(r)
 			when = st.agoStyle(r.status.LastCommit).Render(ago(r.status.LastCommit))
 		}
 		if r.busy != "" {
@@ -459,6 +461,15 @@ func (a *App) renderLocal(w, h int) string {
 		lines = append(lines, marker+name+"  "+fit(branch, branchW)+"  "+fit(status, statusW)+"  "+fit(when, agoW))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// statusCell is the repo's status symbols, with ⚑ when a repo check fails.
+func (a *App) statusCell(r *localRepo) string {
+	cell := a.st.statusCell(r.status)
+	if a.failing(r) {
+		cell += " " + a.st.warn.Render("⚑")
+	}
+	return cell
 }
 
 func branchLabel(s *gitinfo.Status) string {

@@ -54,6 +54,16 @@ func (a *App) helpLines() []string {
 			note("● is the current branch. Remote branches get a"),
 			note("local branch that tracks them when you switch."),
 		}
+	case a.checks != nil:
+		return []string{
+			title("Repo checks"),
+			row("↑↓ / j k", "move (shows what the fix does)"),
+			row("enter", "fix the highlighted check"),
+			row("esc", "close"),
+			"",
+			note("Line-ending fixes need no uncommitted changes"),
+			note("and leave their changes for you to commit."),
+		}
 	case a.popup != nil:
 		return []string{
 			title("Open in…"),
@@ -101,6 +111,7 @@ func (a *App) helpLines() []string {
 			title("Settings"),
 			row("space", "toggle"),
 			row("enter / x", "default folder: use current · clear"),
+			row("enter / x", "clone protocol: change · follow gh"),
 		)
 	}
 	lines = append(lines, "", note("Keys for the "+tabNames[a.tab]+" tab. Other tabs have their own."))
@@ -124,7 +135,7 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		row("J / K", "scroll details (ctrl+d/u: half page)"),
 		row("w", "open the repo's web page"),
 		row("i", "GitHub issues (n: new issue)"),
-		row("S", "switch branch"),
+		row("S / C", "switch branch · repo checks"),
 		row("b / B", "stale branches: this repo · all"),
 		row("s", "sort: recent · name · dirty"),
 		row("* / h / H", "pin to top · hide · show hidden"),
@@ -150,7 +161,7 @@ func (a *App) localHelp(everywhere []string, row func(k, d string) string, title
 		{st.ok.Render("✓"), "clean, in sync"}, {st.warn.Render("●3"), "changed files"},
 		{st.bad.Render("!2"), "conflicts"}, {st.dim.Render("≡1"), "stashes"},
 		{st.ahead.Render("↑2"), "to push"}, {st.behind.Render("↓5"), "to pull"},
-		{st.dim.Render("∅"), "no upstream"},
+		{st.dim.Render("∅"), "no upstream"}, {st.warn.Render("⚑"), "a check failed: C"},
 	}
 	status := []string{"", fit(st.boxTitle.Render("Status"), helpKeyW+helpDescW)}
 	for i := 0; i < len(legend); i += 2 {
