@@ -11,13 +11,17 @@ folgit ~/code     # scan this folder (always wins over default_dir)
 
 ## Install
 
-You need Go 1.26 or newer and `git` on your PATH.
+folgit needs `git` on your PATH.
+
+Download the archive for your system from [Releases](https://github.com/bferg314/folgit/releases) and put `folgit` (`folgit.exe` on Windows) somewhere on your PATH. There are builds for Linux, macOS and Windows, on x86-64 and ARM.
+
+Or, with Go 1.26 or newer:
 
 ```sh
 go install github.com/bferg314/folgit/cmd/folgit@latest
 ```
 
-This puts the `folgit` binary in `$(go env GOPATH)/bin`, which is `~/go/bin` or `%USERPROFILE%\go\bin` unless you've changed it. Make sure that folder is on your PATH. Run the same command again to update.
+This puts `folgit` in `$(go env GOPATH)/bin` (`~/go/bin`, or `%USERPROFILE%\go\bin` on Windows). Make sure that folder is on your PATH. Run the same command again to update. `folgit --version` says which version you have.
 
 For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh auth login`) or set `GITHUB_TOKEN`. See [GitHub auth](#github-auth).
 
@@ -118,6 +122,8 @@ go build ./cmd/folgit
 go test ./...
 ```
 
+Pushing a tag like `v0.1.0` runs GoReleaser in GitHub Actions, which publishes the binaries as a GitHub release.
+
 ## Known limitations
 
 - Clones, fetches and pulls run in the background with no terminal to type into, so they can't ask for passwords or SSH passphrases. They fail with an error instead: load your SSH key into an agent (or use a credential helper for HTTPS). If you set `core.sshCommand`, `GIT_SSH` or `GIT_SSH_COMMAND`, folgit uses it unchanged.
@@ -129,7 +135,7 @@ go test ./...
 Possible next steps, roughly in priority order:
 
 - **Unpushed-work report.** One view of every repo with uncommitted changes, unpushed commits, stashes or branches that exist only on this machine, so you can tell whether it's safe to wipe it.
-- **Releases.** A GoReleaser config and a GitHub Actions workflow so that tagging a version publishes binaries for Windows, macOS and Linux, plus Homebrew and Scoop packages. Installing would no longer need Go.
+- **Packages.** Homebrew and Scoop packages built from each release.
 - **PR and CI badges.** Open pull requests and the latest CI result for each repo, using the same GitHub token.
 - **Scriptable commands.** Non-interactive output such as `folgit ls --dirty --json` for scripts and shell prompts.
 - **Worktrees.** List each repo's worktrees under it.

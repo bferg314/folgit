@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
@@ -17,7 +18,18 @@ import (
 	"github.com/bferg314/folgit/internal/ui"
 )
 
+// version is set by release builds (-X main.version=…). go install builds
+// get it from the module version instead.
 var version = "dev"
+
+func init() {
+	if version != "dev" {
+		return
+	}
+	if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = strings.TrimPrefix(bi.Main.Version, "v")
+	}
+}
 
 func main() {
 	showVersion := flag.Bool("version", false, "print version and exit")
