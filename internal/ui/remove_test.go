@@ -15,6 +15,8 @@ import (
 
 func TestRemoveMovesRepoToTrash(t *testing.T) {
 	tmp := t.TempDir()
+	// On macOS the trash is ~/.Trash, so keep it inside tmp too.
+	t.Setenv("HOME", tmp)
 	t.Setenv("XDG_DATA_HOME", filepath.Join(tmp, "data"))
 	t.Setenv("XDG_CACHE_HOME", filepath.Join(tmp, "cache"))
 	t.Setenv("LocalAppData", filepath.Join(tmp, "cache"))
@@ -69,7 +71,11 @@ func TestRemoveMovesRepoToTrash(t *testing.T) {
 	if _, err := os.Stat(repo); !os.IsNotExist(err) {
 		t.Fatalf("repo should be gone: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(tmp, "data", "Trash", "files", "doomed", ".git")); err != nil && !noTrash {
+	trashed := filepath.Join(tmp, "data", "Trash", "files", "doomed")
+	if runtime.GOOS == "darwin" {
+		trashed = filepath.Join(tmp, ".Trash", "doomed")
+	}
+	if _, err := os.Stat(filepath.Join(trashed, ".git")); err != nil && !noTrash {
 		t.Fatalf("repo should be in the trash: %v", err)
 	}
 	if a.local.rows[repo] != nil || len(a.cfg.Pinned) != 0 {
