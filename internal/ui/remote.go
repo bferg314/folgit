@@ -13,6 +13,7 @@ import (
 
 	"github.com/bferg314/folgit/internal/config"
 	"github.com/bferg314/folgit/internal/launcher"
+	"github.com/bferg314/folgit/internal/match"
 	"github.com/bferg314/folgit/internal/provider"
 	"github.com/bferg314/folgit/internal/provider/github"
 )
@@ -57,6 +58,21 @@ func (t *remoteTab) current() *provider.Repo {
 
 // refresh shows repos that are not already cloned locally, and only the
 // user's own when onlyMine is set.
+// lookup finds the listed repo a remote URL points at, if the provider
+// listed it.
+func (t *remoteTab) lookup(url string) *provider.Repo {
+	k := match.Key(url)
+	if k == "" {
+		return nil
+	}
+	for i := range t.all {
+		if t.all[i].Key() == k {
+			return &t.all[i]
+		}
+	}
+	return nil
+}
+
 func (t *remoteTab) refresh(local map[string]bool) {
 	var keep string
 	if r := t.current(); r != nil {

@@ -10,6 +10,7 @@ import (
 	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/folgit/internal/gitinfo"
+	"github.com/bferg314/folgit/internal/provider"
 )
 
 // Below this width the pane can't sit beside the list; "i" then shows it
@@ -205,7 +206,7 @@ func (a *App) renderDetail(w, h int, border bool) string {
 	if r == nil {
 		add(st.dim.Render("No repository selected"))
 	} else {
-		add(st.selName.Render(r.rel))
+		add(a.detailTitle(r, cw, ""))
 		if s := r.status; s != nil && s.Err == nil {
 			line := st.branch.Render(branchLabel(s))
 			if s.Upstream != "" {
@@ -242,14 +243,40 @@ func (a *App) renderDetail(w, h int, border bool) string {
 		// Scroll position on the title line, e.g. "J/K ↕ 40%".
 		pct := a.detail.scroll * 100 / a.detail.maxScroll
 		ind := st.dim.Render(fmt.Sprintf("J/K ↕ %d%%", pct))
-		title := st.selName.Render(r.rel)
-		header[0] = fit(title, max(1, cw-lipgloss.Width(ind)-1)) + " " + ind
+		header[0] = a.detailTitle(r, cw, ind)
 	}
 	all := append(header, body[a.detail.scroll:]...)
 	if len(all) > h {
 		all = all[:h]
 	}
 	return a.framePane(all, h, cw, border)
+}
+
+// detailTitle is the repo name with its visibility badge and, when set, the
+// right-hand indicator. The badge keeps its place when the name is cut.
+func (a *App) detailTitle(r *localRepo, cw int, ind string) string {
+	right := ind
+	if r.status != nil {
+		for _, u := range r.status.Remotes {
+			if p := a.remote.lookup(u); p != nil {
+				right = strings.TrimSpace(a.st.visibility(p) + " " + right)
+				break
+			}
+		}
+	}
+	title := a.st.selName.Render(r.rel)
+	if right == "" {
+		return fit(title, cw)
+	}
+	return fit(title, max(1, cw-lipgloss.Width(right)-1)) + " " + right
+}
+
+// visibility is a badge saying whether a listed repo is public or private.
+func (s styles) visibility(p *provider.Repo) string {
+	if p.Private {
+		return s.dim.Render("private")
+	}
+	return s.ok.Render("public")
 }
 
 // framePane pads the pane to h lines and adds the left border or gutter.
@@ -303,7 +330,11 @@ func (a *App) appendDetails(d *gitinfo.Details, cw int, add func(string), sectio
 	if len(d.Remotes) > 0 {
 		section("REMOTES")
 		for _, r := range d.Remotes {
-			add(st.textS.Render(fmt.Sprintf("%-8s", r.Name)) + " " + st.dim.Render(r.URL))
+			line := st.textS.Render(fmt.Sprintf("%-8s", r.Name)) + " "
+			if p := a.remote.lookup(r.URL); p != nil {
+				line += st.visibility(p) + " "
+			}
+			add(line + st.dim.Render(r.URL))
 		}
 	}
 
