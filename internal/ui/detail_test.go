@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bferg314/folgit/internal/config"
 	"github.com/bferg314/folgit/internal/gitinfo"
+	"github.com/bferg314/folgit/internal/provider"
 )
 
 // newDetailApp builds an app with two repos, the first with 40 commits of
@@ -127,5 +129,32 @@ func TestDetailScrollFullScreen(t *testing.T) {
 	screen(a)
 	if a.detail.scroll != 2 || a.local.selected().rel != "alpha" {
 		t.Fatalf("j/down should scroll the full-screen pane, scroll=%d sel=%s", a.detail.scroll, a.local.selected().rel)
+	}
+}
+
+func TestDetailVisibility(t *testing.T) {
+	a := newDetailApp(t, 140, 40)
+	a.local.selected().status.Remotes = []string{"git@github.com:me/alpha.git"}
+	a.detail.cache["/root/alpha"] = &gitinfo.Details{Remotes: []gitinfo.Remote{
+		{Name: "origin", URL: "git@github.com:me/alpha.git"},
+		{Name: "upstream", URL: "https://github.com/them/alpha"},
+		{Name: "other", URL: "https://example.com/x/alpha"},
+	}}
+	if s := screen(a); strings.Contains(s, "public") || strings.Contains(s, "private") {
+		t.Fatalf("visibility shown before repos are listed:\n%s", s)
+	}
+
+	a.remote.all = []provider.Repo{
+		{Host: "github.com", Owner: "me", Name: "alpha", Private: true},
+		{Host: "github.com", Owner: "them", Name: "alpha"},
+	}
+	s := screen(a)
+	if !regexp.MustCompile(`│ alpha +private`).MatchString(s) {
+		t.Fatalf("title should carry the visibility badge:\n%s", s)
+	}
+	for _, want := range []string{"origin   private git@github.com:me/alpha.git", "upstream public https://github.com/them/alpha", "other    https://example.com/x/alpha"} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("missing %q:\n%s", want, s)
+		}
 	}
 }
