@@ -356,7 +356,37 @@ func (a *App) renderCleanup() string {
 			st.key.Render("esc") + st.dim.Render(" close")
 	}
 	lines = append(lines, "", fit(hint, cw))
-	return st.box.Width(bw).Render(strings.Join(lines, "\n"))
+	return a.wheelOver(st.box.Width(bw).Render(strings.Join(lines, "\n")), func(d int) tea.Cmd {
+		if v.confirm {
+			return nil // only y, or another key, answers the question
+		}
+		return a.cleanupKey(wheelKey(d).String())
+	})
+}
+
+// cleanupRowZones makes row i, on line of the popup, clickable: a click
+// moves to it and a click on its ○ selects it, as space does. While a
+// delete waits for y, a click cancels it like any other key.
+func (a *App) cleanupRowZones(i, line, cw int) {
+	v := a.cleanup
+	pick := func() bool {
+		switch {
+		case v.deleting:
+			return false
+		case v.confirm:
+			v.confirm = false
+			return false
+		}
+		v.cursor = i
+		return true
+	}
+	a.boxRow(line, cw, pick, nil, nil)
+	a.boxZone(line, 0, zone{w: 4, click: func() tea.Cmd {
+		if pick() && !v.rows[i].deleted {
+			v.rows[i].selected = !v.rows[i].selected
+		}
+		return nil
+	}})
 }
 
 func (a *App) cleanupRows(cw, h int) []string {
@@ -436,6 +466,7 @@ func (a *App) cleanupRows(cw, h int) []string {
 			reason = st.warn.Render("remote deleted")
 		}
 		line += fit(reason, reasonW) + "  " + fit(st.agoStyle(r.branch.When).Render(ago(r.branch.When)), agoW)
+		a.cleanupRowZones(i, 2+len(rows), cw)
 		rows = append(rows, line)
 	}
 	return rows

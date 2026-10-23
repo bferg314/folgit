@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
@@ -117,6 +118,14 @@ func (a *App) renderStatusBar() string {
 		path = ""
 	}
 	left = append(left, seg(st.barLow, part{text: path, fg: st.text}))
+	// "? help" is the last segment, at the right edge when the bar fits.
+	if a.barWidth(left, right()) <= a.w {
+		hw := help.width()
+		a.addZone(zone{x: a.w - hw, y: a.h - 1, w: hw, h: 1, click: func() tea.Cmd {
+			a.help, a.helpOffset = true, 0
+			return nil
+		}})
+	}
 	return a.joinBar(left, right())
 }
 

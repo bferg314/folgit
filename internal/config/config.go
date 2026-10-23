@@ -64,6 +64,9 @@ type Config struct {
 	// Powerline draws the status bar with arrow separators, which need a
 	// Nerd Font or Powerline-patched font.
 	Powerline bool `toml:"powerline"`
+	// Mouse lets the mouse click, double-click and scroll. While it's on,
+	// selecting text in the terminal needs Shift (Option on macOS).
+	Mouse bool `toml:"mouse"`
 	// ZellijTabs opens terminal tools in a new zellij tab, instead of
 	// suspending folgit, when folgit runs inside zellij.
 	ZellijTabs bool `toml:"zellij_tabs"`
@@ -227,6 +230,7 @@ func Default() *Config {
 		MaxDepth:        4,
 		ZellijTabs:      true,
 		HerdrWorkspaces: true,
+		Mouse:           true,
 		Ignore: []string{
 			"node_modules", "vendor", "target", "dist", "build", "out",
 			".venv", "venv", "__pycache__", ".next", ".cache", "bin", "obj",

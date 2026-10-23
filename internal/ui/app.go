@@ -65,6 +65,7 @@ type App struct {
 	// terminal.
 	helpOffset int
 	toast      toast
+	mouse      mouseState
 
 	gen    int
 	cancel context.CancelFunc
@@ -472,6 +473,9 @@ func (a *App) dispatch(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyPressMsg:
 		return a, a.handleKey(msg)
+
+	case tea.MouseMsg:
+		return a, a.handleMouse(msg)
 	}
 
 	// Let a focused input receive anything else (pastes, cursor blink etc).
@@ -709,6 +713,9 @@ func (a *App) View() tea.View {
 	v := tea.NewView(a.render())
 	v.AltScreen = true
 	v.WindowTitle = "folgit"
+	if a.cfg.Mouse {
+		v.MouseMode = tea.MouseModeCellMotion
+	}
 	return v
 }
 
@@ -716,47 +723,63 @@ func (a *App) render() string {
 	if a.w == 0 || a.h == 0 {
 		return ""
 	}
+	var zones []zone
+	a.mouse.rec = &zones
+	defer func() {
+		a.mouse.rec = nil
+		a.mouse.zones = clipZones(zones, a.w, a.h)
+	}()
+
 	header := a.renderHeader()
 	rule := a.st.rule.Render(strings.Repeat("─", a.w))
 
 	bodyH := a.h - chromeLines
-	var body string
-	switch a.tab {
-	case tabLocal:
-		body = a.renderLocalBody(bodyH)
-	case tabRemote:
-		body = a.renderRemote(bodyH)
-	case tabSettings:
-		body = a.renderSettings(bodyH)
-	}
+	body, bodyZones := a.capture(func() string {
+		switch a.tab {
+		case tabLocal:
+			return a.renderLocalBody(bodyH)
+		case tabRemote:
+			return a.renderRemote(bodyH)
+		case tabSettings:
+			return a.renderSettings(bodyH)
+		}
+		return ""
+	})
+	a.addZones(bodyZones, 0, 2) // below the header and its rule
 	body = padLines(body, bodyH, a.w)
 
 	base := strings.Join([]string{header, rule, body, a.renderStatusBar()}, "\n")
 
-	var overlay string
-	switch {
-	case a.help:
-		overlay = a.renderHelp()
-	case a.remove != nil:
-		overlay = a.renderRemove()
-	case a.cleanup != nil:
-		overlay = a.renderCleanup()
-	case a.issues != nil:
-		overlay = a.renderIssues()
-	case a.switcher != nil:
-		overlay = a.renderSwitch()
-	case a.checks != nil:
-		overlay = a.renderChecks()
-	case a.popup != nil:
-		overlay = a.renderPopup()
-	}
+	overlay, overlayZones := a.capture(func() string {
+		switch {
+		case a.help:
+			return a.renderHelp()
+		case a.remove != nil:
+			return a.renderRemove()
+		case a.cleanup != nil:
+			return a.renderCleanup()
+		case a.issues != nil:
+			return a.renderIssues()
+		case a.switcher != nil:
+			return a.renderSwitch()
+		case a.checks != nil:
+			return a.renderChecks()
+		case a.popup != nil:
+			return a.renderPopup()
+		}
+		return ""
+	})
 	if overlay == "" {
 		return base
 	}
 	ow, oh := lipgloss.Width(overlay), lipgloss.Height(overlay)
+	ox, oy := max(0, (a.w-ow)/2), max(0, (a.h-oh)/2)
+	// The overlay is modal: what's underneath can't be clicked.
+	zones = a.overlayZones(ox, oy, ow, oh)
+	a.addZones(overlayZones, ox, oy)
 	return lipgloss.NewCompositor(
 		lipgloss.NewLayer(base),
-		lipgloss.NewLayer(overlay).X(max(0, (a.w-ow)/2)).Y(max(0, (a.h-oh)/2)).Z(1),
+		lipgloss.NewLayer(overlay).X(ox).Y(oy).Z(1),
 	).Render()
 }
 
@@ -782,6 +805,7 @@ func (a *App) renderHeader() string {
 		"",
 	}
 	var tabs []string
+	x := lipgloss.Width(logo) + 1
 	for i, name := range tabNames {
 		label := name
 		if counts[i] != "" {
@@ -792,6 +816,9 @@ func (a *App) renderHeader() string {
 		} else {
 			tabs = append(tabs, a.st.tabOff.Render(label))
 		}
+		tw := lipgloss.Width(tabs[i])
+		a.addZone(zone{x: x, y: 0, w: tw, h: 1, click: func() tea.Cmd { return a.setTab(i) }})
+		x += tw + 1
 	}
 	left := logo + " " + strings.Join(tabs, " ")
 

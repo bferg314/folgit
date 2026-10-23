@@ -211,8 +211,12 @@ func (a *App) renderRemote(h int) string {
 	t := &a.remote
 	st := a.st
 	var lines []string
+	if len(t.view) > 0 {
+		a.addZone(zone{w: a.w, h: h, wheel: wheelKeys(a.remoteKey)})
+	}
 
 	if t.filter.Focused() || t.filter.Value() != "" {
+		a.addZone(zone{w: a.w, h: 1, click: func() tea.Cmd { return t.filter.Focus() }})
 		lines = append(lines, " "+st.key.Render("/")+" "+t.filter.View())
 		h--
 	}
@@ -318,7 +322,34 @@ func (a *App) renderRemote(h int) string {
 		line += fit(st.textS.Render(r.Language), langW) + "  " +
 			fit(st.warn.Render(stars), starW) + "  " +
 			fit(st.agoStyle(r.PushedAt).Render(ago(r.PushedAt)), agoW)
+		a.remoteRowZones(i, len(lines))
 		lines = append(lines, line)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// remoteRowZones makes row i of the view, drawn at line y, clickable: a
+// click puts the cursor on it, a double click is enter (clone), and a
+// click on its ○ selects it as space does.
+func (a *App) remoteRowZones(i, y int) {
+	t := &a.remote
+	pick := func() bool {
+		if t.filter.Focused() {
+			t.filter.Blur()
+			a.refreshViews()
+		}
+		was := t.cursor == i
+		if i < len(t.view) {
+			t.cursor = i
+		}
+		return was
+	}
+	a.listRow(0, y, a.w, pick, keyCmd(a.remoteKey, "enter"), nil)
+	a.addZone(zone{y: y, w: 4, h: 1, click: func() tea.Cmd {
+		pick()
+		if r := t.current(); r != nil {
+			t.selected[r.Key()] = !t.selected[r.Key()]
+		}
+		return nil
+	}})
 }

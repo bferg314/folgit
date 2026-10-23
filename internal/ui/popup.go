@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/bferg314/folgit/internal/config"
 )
@@ -58,7 +59,9 @@ func (a *App) renderPopup() string {
 		case t.Mode == config.ModeTerminal:
 			mode = st.faintText.Render(" terminal")
 		}
+		a.boxZone(len(lines), 0, zone{w: 2 + lipgloss.Width(t.Key) + 2 + 16 + lipgloss.Width(mode),
+			click: func() tea.Cmd { p.cursor = i; return a.popupKey("enter") }})
 		lines = append(lines, marker+st.key.Render(t.Key)+"  "+fit(name, 16)+mode)
 	}
-	return st.box.Render(strings.Join(lines, "\n"))
+	return a.wheelOver(st.box.Render(strings.Join(lines, "\n")), wheelKeys(a.popupKey))
 }

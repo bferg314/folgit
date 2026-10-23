@@ -268,6 +268,15 @@ func (a *App) renderChecks() string {
 		if !c.ok {
 			mark, note = st.bad.Render("✗ "), st.warn.Render(c.problem)
 		}
+		pick := func() bool {
+			if v.fixing {
+				return false
+			}
+			was := v.cursor == i
+			v.cursor = i
+			return was
+		}
+		a.boxRow(len(lines), cw, pick, keyCmd(a.checksKey, "enter"), nil)
 		lines = append(lines, marker+mark+fit(name, 18)+" "+fit(note, max(1, cw-22)))
 		if !c.ok && i == v.cursor {
 			for _, f := range c.fix {
@@ -291,7 +300,7 @@ func (a *App) renderChecks() string {
 
 	hint := st.key.Render("enter") + st.dim.Render(" fix the highlighted check · ") + st.key.Render("esc") + st.dim.Render(" close")
 	lines = append(lines, "", fit(hint, cw))
-	return st.box.Width(bw).Render(strings.Join(lines, "\n"))
+	return a.wheelOver(st.box.Width(bw).Render(strings.Join(lines, "\n")), wheelKeys(a.checksKey))
 }
 
 // appendChecks adds the failing checks to the detail pane.

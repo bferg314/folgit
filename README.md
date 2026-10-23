@@ -44,6 +44,16 @@ For the Remote tab, sign in with the [GitHub CLI](https://cli.github.com/) (`gh 
 
 Press `?` for the keys that work where you are: the current tab's keys plus the ones that work everywhere, or the open popup's keys. On the Local tab it also lists your tools' keys and what the status symbols mean. If it doesn't fit the terminal, `j`/`k` scroll it.
 
+## Mouse
+
+Click a tab to switch to it and a row to move to it, on every tab and in every popup. On the Local tab, double-click or right-click a repo to choose a tool to open it in (`enter`), and click the REPOSITORY, STATUS and COMMITTED headings to sort by name, dirty first or most recent. On the Remote tab, double-click clones (`enter`) and clicking a repo's `○` selects it, like `space`. In Settings, a click moves to a setting and a click on its checkbox (or `▸`) changes it. Clicking a filter line puts the cursor in it.
+
+In popups, a click on a tool opens the repo in it. Double-click opens an issue, switches to a branch or runs a check's fix. In branch cleanup, clicking a branch's `○` selects it; deleting still needs `y`. `? help` in the status bar opens help. The wheel moves through lists and scrolls the detail pane and help.
+
+While a popup is open, a click outside it closes it, as `esc` does. The exceptions are the new-issue form and the delete confirmation, so a stray click doesn't throw away what you typed.
+
+While folgit has the mouse, your terminal's own text selection needs Shift held (Option in macOS Terminal and iTerm2). To turn the mouse off, untick **Mouse** in Settings or set `mouse = false`.
+
 ## Status bar
 
 The bar at the bottom works like vim-airline:
@@ -86,6 +96,7 @@ max_depth = 4
 clone_layout = "{repo}"          # or "{owner}/{repo}", "{host}/{owner}/{repo}"
 pinned = ["~/code/folgit"]       # set with * on the Local tab
 hidden = ["~/code/scratch"]      # set with h
+mouse = true                     # clicks and the wheel; Shift+drag still selects text
 zellij_tabs = true               # inside zellij, terminal tools open in a new tab
 herdr_workspaces = true          # inside herdr, terminal tools open in the repo's workspace
 
