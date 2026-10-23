@@ -281,7 +281,15 @@ func (a *App) renderSwitch() string {
 	hint := st.key.Render("enter") + st.dim.Render(" switch · ") + st.key.Render("/") + st.dim.Render(" filter · ") +
 		st.key.Render("f") + st.dim.Render(" fetch · ") + st.key.Render("esc") + st.dim.Render(" close")
 	lines = append(lines, "", fit(hint, cw))
-	return st.box.Width(bw).Render(strings.Join(lines, "\n"))
+	a.boxZone(1, 0, zone{w: cw, click: func() tea.Cmd {
+		if v.switching {
+			return nil
+		}
+		return v.filter.Focus()
+	}})
+	return a.wheelOver(st.box.Width(bw).Render(strings.Join(lines, "\n")), func(d int) tea.Cmd {
+		return a.switchKey(wheelKey(d))
+	})
 }
 
 func (a *App) switchRows(cw, h int) []string {
@@ -337,6 +345,16 @@ func (a *App) switchRows(cw, h int) []string {
 		}
 
 		name := st.highlightName(t.Name, nameW, v.matches[t.Name], sel)
+		pick := func() bool {
+			if v.switching {
+				return false
+			}
+			was := v.cursor == i
+			v.filter.Blur()
+			v.cursor = i
+			return was
+		}
+		a.boxRow(2+len(rows), cw, pick, a.switchTo, nil)
 		rows = append(rows, marker+mark+name+"  "+fit(info, infoW)+"  "+
 			fit(st.agoStyle(t.When).Render(ago(t.When)), agoW))
 	}

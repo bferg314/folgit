@@ -193,6 +193,14 @@ func (a *App) renderIssueForm(w, h int) []string {
 	f.body.SetWidth(w)
 	f.body.SetHeight(bodyH)
 
+	// A click on a field (or its label) moves to it. The form starts on the
+	// popup's third line.
+	focus := func(body bool) func() tea.Cmd {
+		return func() tea.Cmd { f.onBody = body; return f.focus() }
+	}
+	a.addZone(zone{x: boxLeft, y: boxTop + 2, w: w, h: 2, click: focus(false)})
+	a.addZone(zone{x: boxLeft, y: boxTop + 5, w: w, h: 1 + bodyH, click: focus(true)})
+
 	lines := []string{
 		label("Title", !f.onBody),
 		fit(f.title.View(), w),

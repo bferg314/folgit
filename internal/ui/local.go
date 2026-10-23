@@ -353,8 +353,12 @@ func (a *App) renderLocal(w, h int) string {
 	t := &a.local
 	st := a.st
 	var lines []string
+	if len(t.view) > 0 {
+		a.addZone(zone{w: w, h: h, wheel: func(d int) tea.Cmd { t.move(d); return nil }})
+	}
 
 	if t.filter.Focused() || t.filter.Value() != "" {
+		a.addZone(zone{w: w, h: 1, click: func() tea.Cmd { return t.filter.Focus() }})
 		lines = append(lines, " "+st.key.Render("/")+" "+t.filter.View())
 		h--
 	}
@@ -404,6 +408,17 @@ func (a *App) renderLocal(w, h int) string {
 		fit(st.colHead.Render("BRANCH"), branchW)+"  "+
 		fit(st.colHead.Render("STATUS"), statusW)+"  "+
 		fit(st.colHead.Render("COMMITTED"), agoW))
+	// The headings sort by their column.
+	sortBy := func(x, w int, s sortMode) {
+		a.addZone(zone{x: x, y: len(lines) - 1, w: w, h: 1, click: func() tea.Cmd {
+			t.sort = s
+			t.refresh()
+			return nil
+		}})
+	}
+	sortBy(markW, nameW, sortName)
+	sortBy(markW+nameW+2+branchW+2, statusW, sortDirty)
+	sortBy(markW+nameW+2+branchW+2+statusW+2, agoW, sortRecent)
 	h--
 
 	// Keep the cursor in view.
@@ -458,9 +473,30 @@ func (a *App) renderLocal(w, h int) string {
 			status = a.spin.View() + " " + st.dim.Render(r.busy)
 		}
 
+		a.localRowZone(i, len(lines), w)
 		lines = append(lines, marker+name+"  "+fit(branch, branchW)+"  "+fit(status, statusW)+"  "+fit(when, agoW))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// localRowZone makes row i of the view, drawn at line y, clickable: a
+// click puts the cursor on it, and a double click or a right click opens
+// it in a tool, as enter does.
+func (a *App) localRowZone(i, y, w int) {
+	t := &a.local
+	pick := func() bool {
+		if t.filter.Focused() {
+			t.filter.Blur()
+			a.refreshViews()
+		}
+		was := t.cursor == i
+		if i < len(t.view) {
+			t.cursor = i
+		}
+		return was
+	}
+	open := keyCmd(a.localKey, "enter")
+	a.listRow(0, y, w, pick, open, open)
 }
 
 // statusCell is the repo's status symbols, with ⚑ when a repo check fails.

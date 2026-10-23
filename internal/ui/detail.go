@@ -176,14 +176,17 @@ func (a *App) detailScrollKey(key string) bool {
 func (a *App) paneWidth() int { return max(40, min(70, a.w*2/5)) }
 
 func (a *App) renderLocalBody(h int) string {
+	scroll := func(d int) tea.Cmd { a.scrollDetail(3 * d); return nil }
 	switch a.detailLayout() {
 	case layoutSide:
 		pw := a.paneWidth()
 		lw := a.w - pw
+		a.addZone(zone{x: lw, w: pw, h: h, wheel: scroll})
 		return lipgloss.JoinHorizontal(lipgloss.Top,
 			padLines(a.renderLocal(lw, h), h, lw),
 			padLines(a.renderDetail(pw, h, true), h, pw))
 	case layoutFull:
+		a.addZone(zone{w: a.w, h: h, wheel: scroll})
 		return a.renderDetail(a.w, h, false)
 	}
 	return a.renderLocal(a.w, h)

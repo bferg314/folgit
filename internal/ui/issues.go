@@ -235,7 +235,11 @@ func (a *App) renderIssues() string {
 		hint = a.issueFormHint()
 	}
 	lines = append(lines, "", fit(hint, cw))
-	return st.box.Width(bw).Render(strings.Join(lines, "\n"))
+	box := st.box.Width(bw).Render(strings.Join(lines, "\n"))
+	if v.form != nil && v.form.open {
+		return box
+	}
+	return a.wheelOver(box, func(d int) tea.Cmd { return a.issuesKey(wheelKey(d)) })
 }
 
 func (a *App) issueRows(cw, h int) []string {
@@ -260,6 +264,12 @@ func (a *App) issueRows(cw, h int) []string {
 			marker, title = st.marker.Render("▌")+" ", st.selName.Render(is.Title)
 		}
 		labels := st.dim.Render(strings.Join(is.Labels, " · "))
+		pick := func() bool {
+			was := v.cursor == i
+			v.cursor = i
+			return was
+		}
+		a.boxRow(2+len(rows), cw, pick, func() tea.Cmd { return a.issuesKey(keyPress("enter")) }, nil)
 		rows = append(rows, marker+fit(st.warn.Render(fmt.Sprintf("#%d", is.Number)), numW)+
 			fit(title, titleW)+" "+fit(labels, labelW)+" "+
 			fit(st.agoStyle(is.UpdatedAt).Render(ago(is.UpdatedAt)), agoW))

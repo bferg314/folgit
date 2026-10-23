@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 )
 
@@ -91,6 +92,13 @@ func (a *App) helpLines() []string {
 		row("?", "this help"),
 		row("q", "quit"),
 	)
+	if a.cfg.Mouse {
+		everywhere = append(everywhere,
+			row("click", "go there; tab names switch tabs"),
+			row("dbl-click", "enter · right-click: open in…"),
+			row("wheel", "move, or scroll the detail pane"),
+		)
+	}
 
 	var lines []string
 	switch a.tab {
@@ -204,5 +212,8 @@ func (a *App) renderHelp() string {
 		more := st.key.Render("j k") + st.dim.Render(fmt.Sprintf(" scroll · lines %d–%d of %d · any other key closes", a.helpOffset+1, end, len(lines)))
 		lines = append(lines[a.helpOffset:end:end], more)
 	}
-	return st.box.Padding(0, 2).Render(strings.Join(lines, "\n"))
+	return a.wheelOver(st.box.Padding(0, 2).Render(strings.Join(lines, "\n")), func(d int) tea.Cmd {
+		a.helpOffset += d // renderHelp keeps it in range
+		return nil
+	})
 }
